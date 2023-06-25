@@ -6,6 +6,11 @@ __pycache__/
 # C extensions
 *.so
 
+# Intellij project files
+tensorflow-build-simplifier.iws
+tensorflow-build-simplifier.ipr
+tensorflow-build-simplifier.iml
+
 # Distribution / packaging
 .Python
 build/
