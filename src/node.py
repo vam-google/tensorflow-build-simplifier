@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Union, Dict, Optional, List, Set, cast
+from typing import Dict, Optional, List, cast
 
 from rule import Rule
 

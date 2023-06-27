@@ -1,7 +1,7 @@
 from typing import Dict, List, Set, Iterable, Tuple
 
-from parsers import BazelBuildTargetsParser
-from nodes import  TargetNode
+from parser import BazelBuildTargetsParser
+from node import  TargetNode
 
 import subprocess
 

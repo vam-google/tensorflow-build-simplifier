@@ -1,9 +1,9 @@
 from typing import Dict, List, Callable, Tuple, Set, Optional
 from typing import Pattern, Match
 
-from nodes import Node, TargetNode
+from node import Node, TargetNode
 from rule import Rule, TensorflowRules
-from transformers import NodesGraphBuilder
+from transformer import NodesGraphBuilder
 
 import re
 

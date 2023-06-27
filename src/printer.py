@@ -1,5 +1,5 @@
 from typing import Union, Dict, List, Sequence, Iterable, cast
-from nodes import Node, ContainerNode, TargetNode, FileNode, RepositoryNode, \
+from node import Node, ContainerNode, TargetNode, FileNode, RepositoryNode, \
   PackageNode
 
 
