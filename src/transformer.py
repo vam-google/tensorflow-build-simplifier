@@ -1,5 +1,5 @@
 from typing import Pattern, List, Dict, Iterable, Tuple, cast
-from nodes import Node, ContainerNode, TargetNode, RootNode, RepositoryNode, \
+from node import Node, ContainerNode, TargetNode, RootNode, RepositoryNode, \
   PackageNode
 from rule import TensorflowRules
 import re
