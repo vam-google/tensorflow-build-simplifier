@@ -1,6 +1,7 @@
-from typing import Pattern, List, Dict, Iterable, cast
+from typing import Pattern, List, Dict, Iterable, Tuple, cast
 from nodes import Node, ContainerNode, TargetNode, RootNode, RepositoryNode, \
   PackageNode
+from rule import TensorflowRules
 import re
 
 
@@ -29,6 +30,13 @@ class NodesGraphBuilder:
         if label_val in nodes_dict:
           node.label_args[label_arg_name] = label_val
 
+  def get_label_components(self, label: str) -> Tuple[bool, str, str, str]:
+    match = self._label_splitter_regex.search(label)
+    if not match:
+      raise
+    return match.group("external") == "@", match.group("repo"), match.group(
+        "package"), match.group("name")
+
   def build_package_tree(self, target_nodes_list: Iterable[Node]) -> Dict[
     str, Node]:
     external_root = RootNode("@")
@@ -36,14 +44,7 @@ class NodesGraphBuilder:
     all_nodes: Dict[str, Node] = {external_root.label: external_root,
                                   internal_root.label: internal_root}
     for node in target_nodes_list:
-      match = self._label_splitter_regex.search(node.label)
-      if not match:
-        raise
-      external = match.group("external") == "@"
-      repo = match.group("repo")
-      pkg = match.group("package")
-      name = match.group("name")
-
+      external, repo, pkg, name = self.get_label_components(node.label)
       root_node = external_root if external else internal_root
       repo_node: RepositoryNode = RepositoryNode(repo, root_node.label)
       all_nodes.get(str(repo_node))
@@ -70,15 +71,24 @@ class NodesGraphBuilder:
 
 
 class PackageTargetsTransformer:
+  def __init__(self):
+    self._cc_header_only_library = TensorflowRules.rules()[
+      "cc_header_only_library"]
+    self._generate_cc = TensorflowRules.rules()["generate_cc"]
+    self._private_generate_cc = TensorflowRules.rules()["_generate_cc"]
+    self._transitive_hdrs = TensorflowRules.rules()["_transitive_hdrs"]
+    self._transitive_parameters_library = TensorflowRules.rules()[
+      "_transitive_parameters_library"]
+
   def merge_cc_header_only_library(self, node: ContainerNode) -> None:
     for child in node.get_containers():
       self.merge_cc_header_only_library(child)
 
-    transitive_hdrs: List[TargetNode] = node.get_targets("_transitive_hdrs")
+    transitive_hdrs: List[TargetNode] = node.get_targets(self._transitive_hdrs)
     if not transitive_hdrs:
       return
     transitive_parameters: List[TargetNode] = node.get_targets(
-      "_transitive_parameters_library")
+        self._transitive_parameters_library)
     cc_library: List[TargetNode] = []
     for child_node in transitive_hdrs:
       cc_library_name = child_node.name[:-len("_gather")]
@@ -90,12 +100,10 @@ class PackageTargetsTransformer:
       hdrs_node = transitive_hdrs[i]
       parameters_node = transitive_parameters[i]
       cc_node = cc_library[i]
-      new_node = TargetNode(cc_node.name, node.label, cc_node)
-      new_node.kind = "cc_header_only_library"
+
+      new_node = TargetNode(self._cc_header_only_library,
+                            cc_node.name, node.label, cc_node)
       for j in range(len(new_node.label_list_args["deps"])):
-        # replace with
-        # merged_node.label_list_args["deps"][j] == parameters_node
-        # once references are resolved
         if new_node.label_list_args["deps"][j] == parameters_node.label:
           new_node.label_list_args["deps"].pop(j)
           break
@@ -113,5 +121,5 @@ class PackageTargetsTransformer:
       for child in cast(ContainerNode, node).children.values():
         self.fix_generate_cc_kind(child)
     else:
-      if node.kind == "_generate_cc":
-        node.kind = "generate_cc"
+      if node.kind == self._private_generate_cc:
+        node.kind = self._generate_cc
