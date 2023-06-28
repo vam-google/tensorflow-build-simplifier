@@ -17,3 +17,5 @@ class BuildFilesWriter:
       full_file_path = os.path.join(full_dir_path, self._build_file_name)
       build_file = open(full_file_path, "w")
       build_file.write(file_body)
+      build_file.flush()
+      build_file.close()
