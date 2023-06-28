@@ -1,4 +1,4 @@
-from typing import Union, Dict, List, Sequence, Iterable, cast
+from typing import Union, Dict, List, Sequence, Iterable, Set, cast
 from node import Node, ContainerNode, TargetNode, FileNode, RepositoryNode, \
   PackageNode
 
@@ -56,11 +56,17 @@ class BasicPrinter:
   def print_build_file(self, nodes: Iterable[Node],
       file_header: str = "") -> str:
     targets: List[str] = []
+    import_statements: Set[str] = set()
+
     for node in nodes:
+      if node.kind.import_statement:
+        import_statements.add(node.kind.import_statement)
       if isinstance(node, TargetNode):
         targets.append(self._print_build_target(cast(TargetNode, node)))
+    import_statements_list: List[str] = list(import_statements)
+    import_statements_list.sort()
 
-    return file_header + "\n".join(targets)
+    return file_header + "\n".join(import_statements_list) + "\n" + "\n".join(targets)
 
   def _print_build_target(self, node: TargetNode) -> str:
     list_args_block: str = ""
@@ -125,6 +131,7 @@ class BuildFilesPrinter(BasicPrinter):
   def _traverse_nodes_tree(self, build_files_dict: Dict[str, str],
       node: PackageNode) -> None:
     direct_target_children_list: List[TargetNode] = []
+
     for label, child in node.children.items():
       if isinstance(child, TargetNode):
         direct_target_children_list.append(child)

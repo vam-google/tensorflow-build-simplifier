@@ -86,7 +86,13 @@ class TensorflowRules:
                                     label_args=["template"],
                                     import_statement="load(\"//tensorflow:tensorflow.bzl\", \"tf_gen_options_header\")"),
       "cc_shared_library": Rule(kind="cc_shared_library",
-                                label_list_args=["roots"]),
+                                label_list_args=["roots",
+                                                 "additional_linker_inputs",
+                                                 "dynamic_deps"],
+                                string_list_args=["exports_filter",
+                                                  "user_link_flags"],
+                                string_args=["shared_lib_name"]),
+
       "_transitive_hdrs": Rule(kind="_transitive_hdrs",
                                label_list_args=["deps"]),
       "_transitive_parameters_library": Rule(

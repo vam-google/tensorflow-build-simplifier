@@ -84,11 +84,12 @@ class PackageTargetsTransformer:
     for child in node.get_containers():
       self.merge_cc_header_only_library(child)
 
-    transitive_hdrs: List[TargetNode] = node.get_targets(self._transitive_hdrs)
+    transitive_hdrs: List[TargetNode] = list(
+      node.get_targets(self._transitive_hdrs))
     if not transitive_hdrs:
       return
-    transitive_parameters: List[TargetNode] = node.get_targets(
-        self._transitive_parameters_library)
+    transitive_parameters: List[TargetNode] = list(node.get_targets(
+        self._transitive_parameters_library))
     cc_library: List[TargetNode] = []
     for child_node in transitive_hdrs:
       cc_library_name = child_node.name[:-len("_gather")]

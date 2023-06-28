@@ -9,10 +9,8 @@ import subprocess
 class BazelRunner:
   def query_output(self, targets: Set[str], config: str = "pycpp_filters",
       output: str = "build", chunk_size: int = 1500) -> str:
-    target_chunks: List[Iterable[str]] = self._split_into_chunks(targets,
-                                                             chunk_size)
     bazel_query_stdouts: List[str] = []
-    for target_chunk in target_chunks:
+    for target_chunk in self._split_into_chunks(targets, chunk_size):
       chunk = "'" + "' union '".join(target_chunk) + "'"
       proc = subprocess.run([
           "bazel",
@@ -26,19 +24,20 @@ class BazelRunner:
       bazel_query_stdouts.append(proc.stdout.decode('utf-8'))
     return "\n".join(bazel_query_stdouts)
 
-  def _split_into_chunks(self, targets: Set[str], chunk_size) -> List[
+  def _split_into_chunks(self, targets: Set[str], chunk_size) -> Iterable[
     Iterable[str]]:
     if len(targets) <= chunk_size:
-      return [targets]
+      yield targets
+      return
     cur_chunk: List[str] = []
-    chunks: List[Iterable[str]] = [cur_chunk]
     for target in targets:
       if len(cur_chunk) >= chunk_size:
+        yield cur_chunk
         cur_chunk = []
-        chunks.append(cur_chunk)
       cur_chunk.append(target)
 
-    return chunks
+    if cur_chunk:
+      yield cur_chunk
 
 
 class TargetsCollector:

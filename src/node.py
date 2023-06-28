@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Optional, List, cast
+from typing import Dict, Optional, List, Iterable, cast
 
 from rule import Rule
 
@@ -39,20 +39,16 @@ class ContainerNode(Node):
     if copy_node:
       self.children = dict(copy_node.children)
 
-  def get_containers(self, rule: Optional[Rule] = None) -> List[
+  def get_containers(self, rule: Optional[Rule] = None) -> Iterable[
     ContainerNode]:
-    children_of_kind: List[ContainerNode] = []
     for node in self.children.values():
       if isinstance(node, ContainerNode) and (not rule or node.kind == rule):
-        children_of_kind.append(cast(ContainerNode, node))
-    return children_of_kind
+        yield cast(ContainerNode, node)
 
-  def get_targets(self, rule: Optional[Rule]) -> List[TargetNode]:
-    children_of_kind: List[TargetNode] = []
+  def get_targets(self, rule: Optional[Rule]) -> Iterable[TargetNode]:
     for node in self.children.values():
       if isinstance(node, TargetNode) and (not rule or (node.kind == rule)):
-        children_of_kind.append(cast(TargetNode, node))
-    return children_of_kind
+        yield cast(TargetNode, node)
 
   def get_target(self, name) -> Optional[TargetNode]:
     for label, node in self.children.items():
