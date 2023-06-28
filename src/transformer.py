@@ -33,7 +33,7 @@ class NodesGraphBuilder:
   def get_label_components(self, label: str) -> Tuple[bool, str, str, str]:
     match = self._label_splitter_regex.search(label)
     if not match:
-      raise
+      raise ValueError(f"{label} is not a valid label")
     return match.group("external") == "@", match.group("repo"), match.group(
         "package"), match.group("name")
 

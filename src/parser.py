@@ -79,7 +79,8 @@ class BazelBuildTargetsParser:
               internal_targets.add(t.label)
           break
       if unknown_rule:
-        print(f"------------\nUnknown Rule: {target_rule}\n------------")
+        raise ValueError(f"Unknown Rule: {target_rule}")
+        # print(f"------------\nUnknown Rule: {target_rule}\n------------")
 
     return internal_nodes, external_targets, internal_targets
 
