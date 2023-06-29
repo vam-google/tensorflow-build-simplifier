@@ -1,4 +1,4 @@
-from typing import Pattern, List, Dict, Iterable, Tuple, cast
+from typing import Pattern, List, Dict, Iterable, Tuple, Set, cast
 from node import Node, ContainerNode, TargetNode, RootNode, RepositoryNode, \
   PackageNode
 from rule import TensorflowRules
@@ -10,7 +10,10 @@ class NodesGraphBuilder:
     self._label_splitter_regex: Pattern = re.compile(
         r"(?P<external>@?)(?P<repo>\w*)//(?P<package>[0-9a-zA-Z\-\._\@/]+)*:(?P<name>[0-9a-zA-Z\-\._\+/]+)$")
 
-  def resolve_label_references(self, nodes_dict: Dict[str, Node]) -> None:
+  def resolve_label_references(self, nodes_dict: Dict[str, TargetNode],
+      nodes_by_type: Dict[str, Dict[str, TargetNode]]) -> Dict[str, TargetNode]:
+    files_dict = nodes_by_type["source"]
+    new_nodes: Dict[str, TargetNode] = {}
     for label, generic_node in nodes_dict.items():
       if not isinstance(generic_node, TargetNode):
         continue
@@ -22,6 +25,10 @@ class NodesGraphBuilder:
           if str(ref) in nodes_dict:
             node.label_list_args[label_list_arg_name].append(
                 nodes_dict[str(ref)])
+          elif str(ref) in files_dict:
+            node.label_list_args[label_list_arg_name].append(
+                files_dict[str(ref)])
+            new_nodes[str(ref)] = files_dict[str(ref)]
           else:
             node.label_list_args[label_list_arg_name].append(ref)
 
@@ -29,6 +36,8 @@ class NodesGraphBuilder:
         label_val = node.label_args[label_arg_name]
         if label_val in nodes_dict:
           node.label_args[label_arg_name] = label_val
+
+    return new_nodes
 
   def get_label_components(self, label: str) -> Tuple[bool, str, str, str]:
     match = self._label_splitter_regex.search(label)
@@ -47,9 +56,12 @@ class NodesGraphBuilder:
       external, repo, pkg, name = self.get_label_components(node.label)
       root_node = external_root if external else internal_root
       repo_node: RepositoryNode = RepositoryNode(repo, root_node.label)
-      all_nodes.get(str(repo_node))
-      repo_node = cast(RepositoryNode,
-                       all_nodes.setdefault(str(repo_node), repo_node))
+      # all_nodes.get(str(repo_node))
+      if str(repo_node) not in all_nodes:
+        root_node.children[str(repo_node)] = repo_node
+        all_nodes[str(repo_node)] = repo_node
+      else:
+        repo_node = cast(RepositoryNode, all_nodes[str(repo_node)])
 
       folders = pkg.split("/")
       container_node: ContainerNode = repo_node
@@ -85,7 +97,7 @@ class PackageTargetsTransformer:
       self.merge_cc_header_only_library(child)
 
     transitive_hdrs: List[TargetNode] = list(
-      node.get_targets(self._transitive_hdrs))
+        node.get_targets(self._transitive_hdrs))
     if not transitive_hdrs:
       return
     transitive_parameters: List[TargetNode] = list(node.get_targets(
@@ -105,7 +117,7 @@ class PackageTargetsTransformer:
       new_node = TargetNode(self._cc_header_only_library,
                             cc_node.name, node.label, cc_node)
       for j in range(len(new_node.label_list_args["deps"])):
-        if new_node.label_list_args["deps"][j] == parameters_node.label:
+        if str(new_node.label_list_args["deps"][j]) == str(parameters_node):
           new_node.label_list_args["deps"].pop(j)
           break
 

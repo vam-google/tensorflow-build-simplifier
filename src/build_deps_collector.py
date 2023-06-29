@@ -24,17 +24,27 @@ def main(root_target, prefix_path, bazel_config, output_path, build_file_name):
         f"Iterations: {iterations}\n"
         f"Incremental Lengths: {incremental_lengths}")
 
+  nodes_by_kind = bazel_query_parser.parse_query_label_kind_output(
+    bazel_runner.query_output(all_targets, output="label_kind"))
+
   tree_builder = transformer.NodesGraphBuilder()
-  # tree_builder.resolve_label_references(all_nodes)
+  new_nodes = tree_builder.resolve_label_references(all_nodes, nodes_by_kind)
+  new_nodes.update(all_nodes)
+  all_nodes = new_nodes
+
   tree_nodes = tree_builder.build_package_tree(all_nodes.values())
+
+
   targets_merger = transformer.PackageTargetsTransformer()
   targets_merger.merge_cc_header_only_library(tree_nodes["//"])
   targets_merger.fix_generate_cc_kind(tree_nodes["//"])
 
-  build_files_printer = printer.BuildFilesPrinter()
-  build_files = build_files_printer.print_build_files(tree_nodes["//"])
-  build_files_writer = fileio.BuildFilesWriter(output_path, build_file_name)
-  build_files_writer.write(build_files)
+
+
+  # build_files_printer = printer.BuildFilesPrinter()
+  # build_files = build_files_printer.print_build_files(tree_nodes["//"])
+  # build_files_writer = fileio.BuildFilesWriter(output_path, build_file_name)
+  # build_files_writer.write(build_files)
 
   # nodes_by_kind = bazel_query_parser.parse_query_label_kind_output(
   #   bazel_runner.query_output(all_targets, output="label_kind"))
@@ -44,8 +54,8 @@ def main(root_target, prefix_path, bazel_config, output_path, build_file_name):
   # basic_printer = printer.BasicPrinter()
   # print(basic_printer.print_build_file(all_nodes.values()))
 
-  # tree_printer = printer.RepoTreePrinter()
-  # print(tree_printer.print(tree_nodes[""], return_string=True))
+  tree_printer = printer.RepoTreePrinter()
+  print(tree_printer.print(tree_nodes[""], return_string=True))
 
 
   end = time.time()

@@ -107,7 +107,7 @@ class TensorflowRules:
                                                        "tags"],
                                      bool_args=["linkstatic", "alwayslink"],
                                      import_statement="load(\"//tensorflow/tsl:tsl.bzl\", \"cc_header_only_library\")"),
-
+      "generated": Rule(kind="generated"),
   }
 
   @staticmethod

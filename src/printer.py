@@ -24,7 +24,8 @@ class RepoTreePrinter:
 
     if isinstance(node, FileNode):
       if print_node and print_files:
-        lines.append(f"{indent * depth}{str(node)}")
+        target_kind = f"{node.kind} " if isinstance(node, TargetNode) else ""
+        lines.append(f"{indent * depth}{target_kind}{str(node)}")
     else:
       if print_node and (
           not isinstance(node, TargetNode) or print_targets):
@@ -38,17 +39,19 @@ class RepoTreePrinter:
 
 
 class BasicPrinter:
-  def print_nodes_by_kind(self, nodes_by_kind: Dict[str, List[Node]]) -> str:
+  def print_nodes_by_kind(self, nodes_by_kind: Dict[str, Dict[str, TargetNode]]) -> str:
     lines: List[str] = []
+    total_count: int = 0
+    count_lines: List[str] = []
     for k, v in nodes_by_kind.items():
-      lines.append(f"{k}: {len(v)}")
-      lines.append("    " + "\n    ".join(str(i) for i in v))
+      sorted_labels: List[str] = [node_label for node_label in v]
+      sorted_labels.sort()
+      lines.append(f"{k}: {len(sorted_labels)}")
+      lines.append("    " + "\n    ".join(sorted_labels))
+      total_count += len(sorted_labels)
+      count_lines.append(f"{k}: {len(sorted_labels)}")
 
-    total_count = 0
-    for k, v in nodes_by_kind.items():
-      total_count += len(v)
-      lines.append(f"{k}: {len(v)}")
-
+    lines.extend(count_lines)
     lines.append(f"\nTotal Items: {total_count}")
 
     return "\n".join(lines)

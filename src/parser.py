@@ -1,7 +1,7 @@
 from typing import Dict, List, Callable, Tuple, Set, Optional
 from typing import Pattern, Match
 
-from node import Node, TargetNode
+from node import Node, TargetNode, FileNode
 from rule import Rule, TensorflowRules
 from transformer import NodesGraphBuilder
 
@@ -150,28 +150,30 @@ class BazelBuildTargetsParser:
     return val[1:-1] if val[0] == "\"" else val
 
   def parse_query_label_kind_output(self, query_label_kind_output: str) -> Dict[
-    str, List[Node]]:
+    str, Dict[str, TargetNode]]:
     target_rules: List[str] = query_label_kind_output.splitlines()
-    internal_nodes: Dict[str, Node] = {}
+    internal_nodes: Dict[str, TargetNode] = {}
     kinds: Dict[str, Rule] = {}
     for target_rule in target_rules:
       match = self._label_kind_regex.search(target_rule)
       if not match:
         continue
-      rule_kind:str = match.group("kind")
-      if rule_kind not in kinds:
-        kinds[rule_kind] = Rule(rule_kind)
-      node = TargetNode(kinds[rule_kind], match.group("name"), match.group("package"))
+      rule_kind: str = match.group("kind")
+      node: TargetNode
+      if rule_kind == "source":
+        node = FileNode(match.group("name"), match.group("package"))
+      else:
+        kind: Rule = TensorflowRules.rules()[match.group("kind")]
+        node = TargetNode(kind, match.group("name"), match.group("package"))
       internal_nodes[str(node)] = node
 
-    nodes_by_kind: Dict[str, List[Node]] = {}
+    nodes_by_kind: Dict[str, Dict[str, TargetNode]] = {}
     for v in internal_nodes.values():
-      nodes_by_kind.setdefault(v.kind.kind, []).append(v)
+      nodes_by_kind.setdefault(v.kind.kind, dict())[str(v)] = v
 
-    nodes_by_kind_count: List[Tuple[str, List[Node]]] = []
-    for k, list_v in nodes_by_kind.items():
-      list_v.sort(key=lambda x: str(x))
-      nodes_by_kind_count.append((k, list_v))
+    nodes_by_kind_count: List[Tuple[str, Dict[str, TargetNode]]] = []
+    for k, dict_v in nodes_by_kind.items():
+      nodes_by_kind_count.append((k, dict_v))
 
     nodes_by_kind_count.sort(key=lambda x: -len(x[1]))
     nodes_by_kind.clear()

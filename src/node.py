@@ -7,14 +7,19 @@ from rule import Rule
 class Node:
   def __init__(self, kind: Rule, name: str, label: str,
       copy_node: Optional[Node]) -> None:
-    self.name: str = name
-    self.label: str = label
-    self.kind: Rule = kind
+    self.kind: Rule
+    self.name: str
+    self.label: str
 
     if copy_node:
+      self.kind = kind
       self.name = str(copy_node.name)
       self.label = str(copy_node.label)
+    else:
       self.kind = kind
+      self.name = name
+      self.label = label
+
 
   def __str__(self) -> str:
     return self.label
@@ -97,8 +102,8 @@ class TargetNode(Node):
     else:
       super().__init__(kind, name, f"{parent_label}:{name}", None)
 
-    self.label_list_args: Dict[str, List[Node]] = {}
-    self.label_args: Dict[str, Node] = {}
+    self.label_list_args: Dict[str, List[TargetNode]] = {}
+    self.label_args: Dict[str, TargetNode] = {}
     self.string_list_args: Dict[str, List[str]] = {}
     self.string_args: Dict[str, str] = {}
     self.bool_args: Dict[str, bool] = {}
@@ -109,6 +114,9 @@ class TargetNode(Node):
       self.string_list_args = dict(copy_node.string_list_args)
       self.string_args = dict(copy_node.string_args)
       self.bool_args = dict(copy_node.bool_args)
+
+  def is_stub(self):
+    return self.kind == TargetNode._target_stub_kind
 
   @staticmethod
   def create_stub(label: str) -> TargetNode:
@@ -121,4 +129,4 @@ class FileNode(TargetNode):
   _rule_kind: Rule = Rule("source")
 
   def __init__(self, name: str, parent_label: str) -> None:
-    super().__init__(FileNode._rule_kind, name, f"{parent_label}:{name}", None)
+    super().__init__(FileNode._rule_kind, name, parent_label, None)
