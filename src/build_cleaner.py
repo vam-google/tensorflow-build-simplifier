@@ -16,12 +16,12 @@ def main(root_target, prefix_path, bazel_config, output_path,
     build_file_name) -> None:
   start: float = time.time()
 
+  # Collect targets info
   bazel_runner: BazelRunner = BazelRunner()
   bazel_query_parser: BazelBuildTargetsParser = BazelBuildTargetsParser(
     prefix_path)
   targets_collector: TargetsCollector = TargetsCollector(bazel_runner,
                                                          bazel_query_parser)
-
   # all_nodes: Dict[str, TargetNode]
   # nodes_by_kind: Dict[str, Dict[str, TargetNode]]
   # all_targets: Set[str]
@@ -30,24 +30,24 @@ def main(root_target, prefix_path, bazel_config, output_path,
 
   all_nodes, nodes_by_kind, all_targets, iterations, incremental_lengths = targets_collector.clollect_targets(
       root_target, bazel_config)
-
   print(f"Targets: {len(all_targets)}\n"
         f"Nodes: {len(all_nodes)}\n"
         f"Iterations: {iterations}\n"
         f"Incremental Lengths: {incremental_lengths}")
 
+
+  # Build targets tree and apply necessary transformations
   tree_builder: NodesGraphBuilder = NodesGraphBuilder()
   tree_nodes: Dict[str, Node] = tree_builder.build_package_tree(
     all_nodes.values())
-
   targets_transformer: PackageTargetsTransformer = PackageTargetsTransformer()
   targets_transformer.merge_cc_header_only_library(
     cast(ContainerNode, tree_nodes["//"]))
   targets_transformer.fix_generate_cc_kind(tree_nodes["//"])
 
 
+  # Populate BUILD files
   build_files_printer: BuildFilesPrinter = BuildFilesPrinter()
-
   build_files: Dict[str, str] = build_files_printer.print_build_files(
     cast(RepositoryNode, tree_nodes["//"]))
   build_files_writer: BuildFilesWriter = BuildFilesWriter(output_path,
