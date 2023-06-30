@@ -50,6 +50,8 @@ class NodesGraphBuilder:
         container_node = next_package_node
       container_node.children[str(node)] = node
 
+
+
     return all_nodes
 
 
