@@ -3,7 +3,7 @@ from node import Node, ContainerNode, TargetNode, FileNode, RepositoryNode, \
   PackageNode
 
 
-class RepoTreePrinter:
+class DebugTreePrinter:
   def print(self, repo_root, print_files: bool = True,
       print_targets: bool = True,
       print_deps: bool = True, indent: str = "    ",
@@ -13,6 +13,23 @@ class RepoTreePrinter:
     self._print(repo_root, lines, -1, print_files, print_targets, print_deps,
                 indent, node_types)
     return "\n".join(lines) if return_string else lines
+
+  def print_nodes_by_kind(self, nodes_by_kind: Dict[str, Dict[str, TargetNode]]) -> str:
+    lines: List[str] = []
+    total_count: int = 0
+    count_lines: List[str] = []
+    for k, v in nodes_by_kind.items():
+      sorted_labels: List[str] = [node_label for node_label in v]
+      sorted_labels.sort()
+      lines.append(f"{k}: {len(sorted_labels)}")
+      lines.append("    " + "\n    ".join(sorted_labels))
+      total_count += len(sorted_labels)
+      count_lines.append(f"{k}: {len(sorted_labels)}")
+
+    lines.extend(count_lines)
+    lines.append(f"\nTotal Items: {total_count}")
+
+    return "\n".join(lines)
 
   def _print(self, node: Node, lines: List[str], depth: int, print_files: bool,
       print_targets: bool, print_deps: bool, indent: str, node_types) -> None:
@@ -38,24 +55,7 @@ class RepoTreePrinter:
                     indent, node_types)
 
 
-class BasicPrinter:
-  def print_nodes_by_kind(self, nodes_by_kind: Dict[str, Dict[str, TargetNode]]) -> str:
-    lines: List[str] = []
-    total_count: int = 0
-    count_lines: List[str] = []
-    for k, v in nodes_by_kind.items():
-      sorted_labels: List[str] = [node_label for node_label in v]
-      sorted_labels.sort()
-      lines.append(f"{k}: {len(sorted_labels)}")
-      lines.append("    " + "\n    ".join(sorted_labels))
-      total_count += len(sorted_labels)
-      count_lines.append(f"{k}: {len(sorted_labels)}")
-
-    lines.extend(count_lines)
-    lines.append(f"\nTotal Items: {total_count}")
-
-    return "\n".join(lines)
-
+class BuildTargetsPrinter:
   def print_build_file(self, nodes: Iterable[Node],
       file_header: str = "") -> str:
     targets: List[str] = []
@@ -64,7 +64,7 @@ class BasicPrinter:
     for node in nodes:
       if node.kind.import_statement:
         import_statements.add(node.kind.import_statement)
-      if isinstance(node, TargetNode):
+      if type(node) == TargetNode:
         targets.append(self._print_build_target(cast(TargetNode, node)))
     import_statements_list: List[str] = list(import_statements)
     import_statements_list.sort()
@@ -121,7 +121,7 @@ class BasicPrinter:
     return target
 
 
-class BuildFilesPrinter(BasicPrinter):
+class BuildFilesPrinter(BuildTargetsPrinter):
   def print_build_files(self, repo_node: RepositoryNode) -> Dict[
     str, str]:
     build_files_dict: Dict[str, str] = {}

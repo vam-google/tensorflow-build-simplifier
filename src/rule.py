@@ -113,3 +113,15 @@ class TensorflowRules:
   @staticmethod
   def rules() -> Dict[str, Rule]:
     return TensorflowRules._rules
+
+
+class PackageProperties:
+  _properties: Dict[str, Rule] = {
+      "exports_files": Rule(kind="exports_files",
+                            label_list_args=["srcs"],
+                            string_list_args=["visibility"])
+  }
+
+  @staticmethod
+  def properties() -> Dict[str, Rule]:
+    return PackageProperties._properties

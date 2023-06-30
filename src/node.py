@@ -20,7 +20,6 @@ class Node:
       self.name = name
       self.label = label
 
-
   def __str__(self) -> str:
     return self.label
 
@@ -76,6 +75,14 @@ class RepositoryNode(ContainerNode):
     super().__init__(RepositoryNode._rule_kind, name, f"{parent_label}{name}//",
                      None)
 
+
+class Property:
+  def __init__(self, kind: Rule) -> None:
+    self.kind = kind
+    self.label_list_args: Dict[str, List[TargetNode]] = {}
+    self.string_list_args: Dict[str, List[str]] = {}
+
+
 class PackageNode(ContainerNode):
   _rule_kind: Rule = Rule("__package__")
 
@@ -87,6 +94,8 @@ class PackageNode(ContainerNode):
       super().__init__(PackageNode._rule_kind, name,
                        f"{parent_label}{'' if depth <= 2 else '/'}{name}",
                        None)
+
+    self.properties: List[Property] = []
 
   def get_package_folder_path(self) -> str:
     return self.label.split("//", 1)[1]
@@ -124,9 +133,12 @@ class TargetNode(Node):
     return TargetNode(TargetNode._target_stub_kind, pkg_and_name[1],
                       pkg_and_name[0])
 
+  def get_parent_label(self) -> str:
+    return self.label[:self.label.rfind(":")]
 
 class FileNode(TargetNode):
   _rule_kind: Rule = Rule("source")
 
   def __init__(self, name: str, parent_label: str) -> None:
     super().__init__(FileNode._rule_kind, name, parent_label, None)
+

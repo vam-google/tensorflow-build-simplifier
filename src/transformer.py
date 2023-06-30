@@ -1,6 +1,6 @@
 from typing import Pattern, List, Dict, Iterable, Tuple, Set, cast
 from node import Node, ContainerNode, TargetNode, RootNode, RepositoryNode, \
-  PackageNode
+  PackageNode, FileNode
 from rule import TensorflowRules
 import re
 
@@ -10,34 +10,6 @@ class NodesGraphBuilder:
     self._label_splitter_regex: Pattern = re.compile(
         r"(?P<external>@?)(?P<repo>\w*)//(?P<package>[0-9a-zA-Z\-\._\@/]+)*:(?P<name>[0-9a-zA-Z\-\._\+/]+)$")
 
-  def resolve_label_references(self, nodes_dict: Dict[str, TargetNode],
-      nodes_by_type: Dict[str, Dict[str, TargetNode]]) -> Dict[str, TargetNode]:
-    files_dict = nodes_by_type["source"]
-    new_nodes: Dict[str, TargetNode] = {}
-    for label, generic_node in nodes_dict.items():
-      if not isinstance(generic_node, TargetNode):
-        continue
-      node: TargetNode = cast(TargetNode, generic_node)
-      for label_list_arg_name in node.label_list_args:
-        refs = node.label_list_args[label_list_arg_name]
-        node.label_list_args[label_list_arg_name] = []
-        for ref in refs:
-          if str(ref) in nodes_dict:
-            node.label_list_args[label_list_arg_name].append(
-                nodes_dict[str(ref)])
-          elif str(ref) in files_dict:
-            node.label_list_args[label_list_arg_name].append(
-                files_dict[str(ref)])
-            new_nodes[str(ref)] = files_dict[str(ref)]
-          else:
-            node.label_list_args[label_list_arg_name].append(ref)
-
-      for label_arg_name in node.label_args:
-        label_val = node.label_args[label_arg_name]
-        if label_val in nodes_dict:
-          node.label_args[label_arg_name] = label_val
-
-    return new_nodes
 
   def get_label_components(self, label: str) -> Tuple[bool, str, str, str]:
     match = self._label_splitter_regex.search(label)
@@ -56,7 +28,6 @@ class NodesGraphBuilder:
       external, repo, pkg, name = self.get_label_components(node.label)
       root_node = external_root if external else internal_root
       repo_node: RepositoryNode = RepositoryNode(repo, root_node.label)
-      # all_nodes.get(str(repo_node))
       if str(repo_node) not in all_nodes:
         root_node.children[str(repo_node)] = repo_node
         all_nodes[str(repo_node)] = repo_node
@@ -83,7 +54,7 @@ class NodesGraphBuilder:
 
 
 class PackageTargetsTransformer:
-  def __init__(self):
+  def __init__(self) -> None:
     self._cc_header_only_library = TensorflowRules.rules()[
       "cc_header_only_library"]
     self._generate_cc = TensorflowRules.rules()["generate_cc"]
@@ -136,3 +107,21 @@ class PackageTargetsTransformer:
     else:
       if node.kind == self._private_generate_cc:
         node.kind = self._generate_cc
+
+  def populate_export_files(self, node: ContainerNode):
+    for child in node.get_containers():
+      self.populate_export_files(child)
+
+  def _collect_files_referenced_from_other_pkg(self, pkg_node: PackageNode,
+      file_to_pkg: Dict[FileNode, PackageNode]) -> None:
+
+    self._collect_files_referenced_from_other_pkg(pkg_node, file_to_pkg)
+
+    for child in pkg_node.children:
+      if isinstance(child, PackageNode):
+        self._collect_files_referenced_from_other_pkg(child, file_to_pkg)
+      elif isinstance(child, FileNode):
+        file_package = child.get_parent_label()
+
+
+

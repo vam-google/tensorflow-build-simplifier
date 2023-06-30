@@ -1,7 +1,7 @@
-from typing import Dict, List, Set, Iterable, Tuple
+from typing import Dict, List, Set, Iterable, Tuple, cast
 
 from parser import BazelBuildTargetsParser
-from node import  TargetNode
+from node import TargetNode, Node
 
 import subprocess
 
@@ -47,7 +47,8 @@ class TargetsCollector:
     self._bazel_query_parser: BazelBuildTargetsParser = bazel_query_parser
 
   def clollect_targets(self, root_target: str, bazel_config: str) -> Tuple[
-    Dict[str, TargetNode], Set[str], int, List[int]]:
+    Dict[str, TargetNode], Dict[str, Dict[str, TargetNode]], Set[str], int,
+    List[int]]:
     next_level_internal_targets: Set[str] = {root_target}
 
     all_targets: Set[str] = set()
@@ -69,4 +70,50 @@ class TargetsCollector:
       all_nodes.update(internal_nodes)
       next_level_internal_targets = internal_targets - all_targets
 
-    return all_nodes, all_targets, iteration, incremental_lengths
+    # Resolve references
+    nodes_by_kind: Dict[str, Dict[
+      str, TargetNode]] = self._bazel_query_parser.parse_query_label_kind_output(
+        self._runner.query_output(all_targets, output="label_kind"))
+    new_all_nodes: Dict[str, TargetNode] = self.resolve_label_references(
+        all_nodes, nodes_by_kind)
+    new_all_nodes.update(all_nodes)
+    all_nodes = new_all_nodes
+
+    # Make sure nodes_by_kind and all_nodes share the same node references for
+    # the same label
+
+    for node_key, node in all_nodes.items():
+      nodes_of_a_kind: Dict[str, TargetNode] = nodes_by_kind[node.kind.kind]
+      if nodes_of_a_kind:
+        nodes_of_a_kind[str(node)] = node
+
+    return all_nodes, nodes_by_kind, all_targets, iteration, incremental_lengths
+
+  def resolve_label_references(self, nodes_dict: Dict[str, TargetNode],
+      nodes_by_kind: Dict[str, Dict[str, TargetNode]]) -> Dict[str, TargetNode]:
+    files_dict = nodes_by_kind["source"]
+    new_nodes: Dict[str, TargetNode] = {}
+    for label, generic_node in nodes_dict.items():
+      if not isinstance(generic_node, TargetNode):
+        continue
+      node: TargetNode = cast(TargetNode, generic_node)
+      for label_list_arg_name in node.label_list_args:
+        refs = node.label_list_args[label_list_arg_name]
+        node.label_list_args[label_list_arg_name] = []
+        for ref in refs:
+          if str(ref) in nodes_dict:
+            node.label_list_args[label_list_arg_name].append(
+                nodes_dict[str(ref)])
+          elif str(ref) in files_dict:
+            node.label_list_args[label_list_arg_name].append(
+                files_dict[str(ref)])
+            new_nodes[str(ref)] = files_dict[str(ref)]
+          else:
+            node.label_list_args[label_list_arg_name].append(ref)
+
+      for label_arg_name in node.label_args:
+        label_val = node.label_args[label_arg_name]
+        if label_val in nodes_dict:
+          node.label_args[label_arg_name] = label_val
+
+    return new_nodes
