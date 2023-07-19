@@ -1,10 +1,10 @@
 from typing import Union, Dict, List, Sequence, Iterable, Set, cast
-from node import Node, ContainerNode, TargetNode, FileNode, RepositoryNode, \
-  PackageNode
+from node import Property, Node, ContainerNode, TargetNode, FileNode, \
+  RepositoryNode, PackageNode
 
 
 class DebugTreePrinter:
-  def print(self, repo_root, print_files: bool = True,
+  def print_nodes_tree(self, repo_root, print_files: bool = True,
       print_targets: bool = True,
       print_deps: bool = True, indent: str = "    ",
       node_types: Sequence[Node] = (),
@@ -14,7 +14,8 @@ class DebugTreePrinter:
                 indent, node_types)
     return "\n".join(lines) if return_string else lines
 
-  def print_nodes_by_kind(self, nodes_by_kind: Dict[str, Dict[str, TargetNode]]) -> str:
+  def print_nodes_by_kind(self,
+      nodes_by_kind: Dict[str, Dict[str, TargetNode]]) -> str:
     lines: List[str] = []
     total_count: int = 0
     count_lines: List[str] = []
@@ -57,9 +58,11 @@ class DebugTreePrinter:
 
 class BuildTargetsPrinter:
   def print_build_file(self, nodes: Iterable[Node],
+      properties: Iterable[Property],
       file_header: str = "") -> str:
-    targets: List[str] = []
     import_statements: Set[str] = set()
+    properties_str: List[str] = []
+    targets: List[str] = []
 
     for node in nodes:
       if node.kind.import_statement:
@@ -69,15 +72,45 @@ class BuildTargetsPrinter:
     import_statements_list: List[str] = list(import_statements)
     import_statements_list.sort()
 
-    return file_header + "\n".join(import_statements_list) + "\n" + "\n".join(targets)
+    for property in properties:
+      properties_str.append(self._print_property(property))
+
+    return file_header + "\n".join(import_statements_list) + "\n" + "\n".join(
+        properties_str) + "\n" + "\n".join(targets)
 
   def _print_build_target(self, node: TargetNode) -> str:
+    list_args_block: str = self._print_list_args(node.label_list_args,
+                                                 node.string_list_args)
+    string_args_block: str = self._print_string_args(node.label_args,
+                                                     node.string_args)
+    bool_args_block: str = self._print_bool_args(node.bool_args)
+
+    target = f"""
+# {str(node)}
+{node.kind}(
+    name = "{node.name}",{list_args_block}{string_args_block}{bool_args_block}
+    visibility = ["//visibility:public"],
+)"""
+    return target
+
+  def _print_property(self, property: Property) -> str:
+    list_args_block: str = self._print_list_args(property.label_list_args,
+                                                 property.string_list_args)
+
+    property_str = f"""
+{property.kind}({list_args_block}
+)"""
+
+    return property_str
+
+  def _print_list_args(self, label_list_args: Dict[str, List[TargetNode]],
+      string_list_args: Dict[str, List[str]]) -> str:
     list_args_block: str = ""
 
     label_list_args_s: Dict[str, List[str]] = {}
-    for k, v_list in node.label_list_args.items():
+    for k, v_list in label_list_args.items():
       label_list_args_s[k] = [str(v) for v in v_list]
-    for list_args in [label_list_args_s, node.string_list_args]:
+    for list_args in [label_list_args_s, string_list_args]:
       list_args_strs: List[str] = []
       for list_arg_name, list_arg_values in list_args.items():
         if not list_arg_values:
@@ -94,10 +127,14 @@ class BuildTargetsPrinter:
       list_args_block += "\n" + "\n".join(
           list_args_strs) if list_args_strs else ""
 
+    return list_args_block
+
+  def _print_string_args(self, label_args: Dict[str, TargetNode],
+      string_args: Dict[str, str]) -> str:
     string_args_block: str = ""
     label_args_s: Dict[str, str] = {k: str(v) for k, v in
-                                    node.label_args.items()}
-    for string_args in [label_args_s, node.string_args]:
+                                    label_args.items()}
+    for string_args in [label_args_s, string_args]:
       string_args_strs: List[str] = []
       for string_arg_name, string_arg_value in string_args.items():
         arg_str = f"    {string_arg_name} = \"{str(string_arg_value)}\","
@@ -105,20 +142,17 @@ class BuildTargetsPrinter:
       string_args_block += "\n" + "\n".join(
           string_args_strs) if string_args_strs else ""
 
+    return string_args_block
+
+  def _print_bool_args(self, bool_args: Dict[str, bool]) -> str:
     bool_args_strs: List[str] = []
-    for bool_arg_name, bool_arg_value in node.bool_args.items():
+    for bool_arg_name, bool_arg_value in bool_args.items():
       arg_str = f"    {bool_arg_name} = {str(bool_arg_value)},"
       bool_args_strs.append(arg_str)
 
     bool_args_block = "\n" + "\n".join(bool_args_strs) if bool_args_strs else ""
 
-    target = f"""
-# {str(node)}
-{node.kind}(
-    name = "{node.name}",{list_args_block}{string_args_block}{bool_args_block}
-    visibility = ["//visibility:public"],
-)"""
-    return target
+    return bool_args_block
 
 
 class BuildFilesPrinter(BuildTargetsPrinter):
@@ -132,16 +166,20 @@ class BuildFilesPrinter(BuildTargetsPrinter):
     return build_files_dict
 
   def _traverse_nodes_tree(self, build_files_dict: Dict[str, str],
-      node: PackageNode) -> None:
+      pkg_node: PackageNode) -> None:
     direct_target_children_list: List[TargetNode] = []
 
-    for label, child in node.children.items():
+    for label, child in pkg_node.children.items():
       if isinstance(child, TargetNode):
         direct_target_children_list.append(child)
       elif isinstance(child, PackageNode):
         self._traverse_nodes_tree(build_files_dict, child)
 
+    direct_target_children_list.sort()
+
     if direct_target_children_list:
-      build_files_dict[node.get_package_folder_path()] = self.print_build_file(
+      build_files_dict[
+        pkg_node.get_package_folder_path()] = self.print_build_file(
           direct_target_children_list,
-          f"# Package: {node.label}\n")
+          pkg_node.properties,
+          f"# Package: {pkg_node.label}\n")

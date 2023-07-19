@@ -2,54 +2,48 @@ import sys
 import os
 import time
 
-from typing import Set, List, Dict, Optional, cast
+from typing import Dict, Optional, cast
 
-from runner import BazelRunner, TargetsCollector
+from runner import BazelRunner, TargetsCollector, CollectedTargets
 from transformer import NodesGraphBuilder, PackageTargetsTransformer
 from parser import BazelBuildTargetsParser
-from printer import BuildFilesPrinter, BuildTargetsPrinter, DebugTreePrinter
+from printer import BuildFilesPrinter, DebugTreePrinter
 from fileio import BuildFilesWriter
-from node import TargetNode, Node, ContainerNode, RepositoryNode
+from node import TargetNode, Node, RepositoryNode
 
 
 def main(root_target, prefix_path, bazel_config, output_path,
     build_file_name) -> None:
   start: float = time.time()
 
-  # Collect targets info
   bazel_runner: BazelRunner = BazelRunner()
   bazel_query_parser: BazelBuildTargetsParser = BazelBuildTargetsParser(
       prefix_path)
   targets_collector: TargetsCollector = TargetsCollector(bazel_runner,
                                                          bazel_query_parser)
-  # all_nodes: Dict[str, TargetNode]
-  # nodes_by_kind: Dict[str, Dict[str, TargetNode]]
-  # all_targets: Set[str]
-  # iterations: int
-  # incremental_lengths: List[int]
-
-  all_nodes, nodes_by_kind, all_targets, iterations, incremental_lengths = targets_collector.clollect_targets(
+  targets: CollectedTargets = targets_collector.clollect_targets(
       root_target, bazel_config)
-  print(f"Targets: {len(all_targets)}\n"
-        f"Nodes: {len(all_nodes)}\n"
-        f"Iterations: {iterations}\n"
-        f"Incremental Lengths: {incremental_lengths}")
+  print(f"Targets: {len(targets.all_targets)}\n"
+        f"Nodes: {len(targets.all_nodes)}\n"
+        f"Iterations: {targets.iterations}\n"
+        f"Incremental Lengths: {targets.incremental_lengths}")
 
   # Build targets tree and apply necessary transformations
   tree_builder: NodesGraphBuilder = NodesGraphBuilder()
   tree_nodes: Dict[str, Node] = tree_builder.build_package_tree(
-      all_nodes.values())
-  targets_transformer: PackageTargetsTransformer = PackageTargetsTransformer()
-  targets_transformer.merge_cc_header_only_library(
-      cast(ContainerNode, tree_nodes["//"]))
-  targets_transformer.fix_generate_cc_kind(tree_nodes["//"])
+      targets.all_nodes.values())
 
+  targets_transformer: PackageTargetsTransformer = PackageTargetsTransformer()
+  tf_root: RepositoryNode = cast(RepositoryNode, tree_nodes["//"])
+  targets_transformer.merge_cc_header_only_library(tf_root)
+  targets_transformer.fix_generate_cc_kind(tf_root)
+  targets_transformer.populate_export_files(tf_root)
 
   populate_build_files(output_path, build_file_name, tree_nodes)
-
-  print_nodes_representations(all_nodes, None, None)
-  print_nodes_representations(None, nodes_by_kind, None)
-  print_nodes_representations(None, None, tree_nodes)
+  #
+  print_nodes_representations(tf_root, None, None)
+  # print_nodes_representations(None, nodes_by_kind, None)
+  # print_nodes_representations(None, None, tree_nodes)
 
   end: float = time.time()
   print(f"Total Time: {end - start}")
@@ -66,17 +60,20 @@ def populate_build_files(output_path: str, build_file_name: str,
   build_files_writer.write(build_files)
 
 
-def print_nodes_representations(all_nodes: Optional[Dict[str, TargetNode]],
+def print_nodes_representations(tf_root: Optional[RepositoryNode],
     nodes_by_kind: Optional[Dict[str, Dict[str, TargetNode]]],
     tree_nodes: Optional[Dict[str, Node]]) -> None:
-  targets_printer: BuildTargetsPrinter = BuildTargetsPrinter()
+  targets_printer: BuildFilesPrinter = BuildFilesPrinter()
   tree_printer: DebugTreePrinter = DebugTreePrinter()
-  if all_nodes:
-    print(targets_printer.print_build_file(all_nodes.values()))
+  if tf_root:
+    files_dict: Dict[str, str] = targets_printer.print_build_files(tf_root)
+    for file_path, file_body in files_dict.items():
+      print("\n")
+      print(file_body)
   if nodes_by_kind:
     print(tree_printer.print_nodes_by_kind(nodes_by_kind))
   if tree_nodes:
-    print(tree_printer.print(tree_nodes[""], return_string=True))
+    print(tree_printer.print_nodes_tree(tree_nodes[""], return_string=True))
 
 
 def parse_args():
