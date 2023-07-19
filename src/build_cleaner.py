@@ -68,7 +68,7 @@ def print_nodes_representations(tf_root: Optional[RepositoryNode],
   if tf_root:
     files_dict: Dict[str, str] = targets_printer.print_build_files(tf_root)
     for file_path, file_body in files_dict.items():
-      print("\n")
+      print()
       print(file_body)
   if nodes_by_kind:
     print(tree_printer.print_nodes_by_kind(nodes_by_kind))

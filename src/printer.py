@@ -63,6 +63,7 @@ class BuildTargetsPrinter:
     import_statements: Set[str] = set()
     properties_str: List[str] = []
     targets: List[str] = []
+    file_blocks: List[str] = []
 
     for node in nodes:
       if node.kind.import_statement:
@@ -75,8 +76,16 @@ class BuildTargetsPrinter:
     for property in properties:
       properties_str.append(self._print_property(property))
 
-    return file_header + "\n".join(import_statements_list) + "\n" + "\n".join(
-        properties_str) + "\n" + "\n".join(targets)
+    if file_header:
+      file_blocks.append(file_header)
+    if import_statements:
+      file_blocks.append("\n".join(import_statements_list))
+    if properties_str:
+      file_blocks.append("\n".join(properties_str))
+    if targets:
+      file_blocks.append("\n".join(targets))
+
+    return "\n".join(file_blocks)
 
   def _print_build_target(self, node: TargetNode) -> str:
     list_args_block: str = self._print_list_args(node.label_list_args,
@@ -84,7 +93,6 @@ class BuildTargetsPrinter:
     string_args_block: str = self._print_string_args(node.label_args,
                                                      node.string_args)
     bool_args_block: str = self._print_bool_args(node.bool_args)
-
     target = f"""
 # {str(node)}
 {node.kind}(
@@ -96,7 +104,6 @@ class BuildTargetsPrinter:
   def _print_property(self, property: Property) -> str:
     list_args_block: str = self._print_list_args(property.label_list_args,
                                                  property.string_list_args)
-
     property_str = f"""
 {property.kind}({list_args_block}
 )"""
@@ -182,4 +189,4 @@ class BuildFilesPrinter(BuildTargetsPrinter):
         pkg_node.get_package_folder_path()] = self.print_build_file(
           direct_target_children_list,
           pkg_node.properties,
-          f"# Package: {pkg_node.label}\n")
+          f"# Package: {pkg_node.label}")
