@@ -149,7 +149,7 @@ class BuildTargetsPrinter:
     return list_args_block
 
   def _shorten_label(self, pkg_label: str, target_label: str):
-    if target_label.startswith(pkg_label):
+    if target_label.startswith(pkg_label + ":"):
       return target_label[len(pkg_label) + 1:]
     return target_label
 
