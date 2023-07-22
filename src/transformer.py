@@ -1,4 +1,4 @@
-from typing import Pattern, List, Dict, Iterable, Tuple, Set, cast
+from typing import Pattern, List, Dict, Iterable, Tuple, Set, Optional, cast
 from node import Node, Property, ContainerNode, TargetNode, RootNode, \
   RepositoryNode, PackageNode, FileNode
 from rule import Rule, TensorflowRules, PackageProperties
@@ -105,7 +105,16 @@ class PackageTargetsTransformer:
         self.fix_generate_cc_kind(child)
     else:
       if node.kind == self._private_generate_cc:
-        node.kind = self._generate_cc
+        target_node = cast(TargetNode, node)
+        target_node.kind = self._generate_cc
+        well_known_protos_arg: Optional[
+          TargetNode] = target_node.label_args.get(
+            "well_known_protos")
+        if well_known_protos_arg:
+          target_node.bool_args["well_known_protos"] = True
+          del target_node.bool_args["well_known_protos"]
+        else:
+          target_node.bool_args["well_known_protos"] = False
 
   def populate_export_files(self, root: ContainerNode):
     file_to_packages: Dict[str, Set[PackageNode]] = {}

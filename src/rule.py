@@ -83,7 +83,7 @@ class TensorflowRules:
                         label_args=["shared_library", "interface_library"],
                         bool_args=["system_provided"]),
       "tf_gen_options_header": Rule(kind="tf_gen_options_header",
-                                    label_args=["template"],
+                                    label_args=["template", "output_header"],
                                     import_statement="load(\"//tensorflow:tensorflow.bzl\", \"tf_gen_options_header\")"),
       "cc_shared_library": Rule(kind="cc_shared_library",
                                 label_list_args=["roots",

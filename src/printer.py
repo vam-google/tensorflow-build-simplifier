@@ -126,8 +126,9 @@ class BuildTargetsPrinter:
     list_args_block: str = ""
 
     label_list_args_s: Dict[str, List[str]] = {}
+    pkg_prefix: str = pkg_label + ":"
     for k, v_list in label_list_args.items():
-      label_list_args_s[k] = [self._shorten_label(pkg_label, str(v)) for v in
+      label_list_args_s[k] = [self._shorten_label(pkg_prefix, v) for v in
                               v_list]
     for list_args in [label_list_args_s, string_list_args]:
       list_args_strs: List[str] = []
@@ -148,16 +149,20 @@ class BuildTargetsPrinter:
 
     return list_args_block
 
-  def _shorten_label(self, pkg_label: str, target_label: str):
-    if target_label.startswith(pkg_label + ":"):
-      return target_label[len(pkg_label) + 1:]
-    return target_label
+  def _shorten_label(self, pkg_prefix: str, target: TargetNode):
+    label = str(target)
+    if label.startswith(pkg_prefix):
+      prefix_len = len(pkg_prefix) if isinstance(target, FileNode) else len(
+        pkg_prefix) - 1
+      return label[prefix_len:]
+    return label
 
   def _print_string_args(self, pkg_label: str,
       label_args: Dict[str, TargetNode],
       string_args: Dict[str, str]) -> str:
     string_args_block: str = ""
-    label_args_s: Dict[str, str] = {k: self._shorten_label(pkg_label, str(v))
+    pkg_prefix: str = pkg_label + ":"
+    label_args_s: Dict[str, str] = {k: self._shorten_label(pkg_prefix, v)
                                     for k, v in
                                     label_args.items()}
     for string_args in [label_args_s, string_args]:
