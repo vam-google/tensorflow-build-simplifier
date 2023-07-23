@@ -3,6 +3,12 @@ from typing import Dict, Optional, List, Iterable, Generator, cast
 
 from rule import Rule
 
+class Function:
+  def __init__(self, kind: Rule) -> None:
+    self.kind = kind
+    self.label_list_args: Dict[str, List[TargetNode]] = {}
+    self.string_list_args: Dict[str, List[str]] = {}
+
 
 class Node:
   def __init__(self, kind: Rule, name: str, label: str,
@@ -86,13 +92,6 @@ class RepositoryNode(ContainerNode):
                      None)
 
 
-class Property:
-  def __init__(self, kind: Rule) -> None:
-    self.kind = kind
-    self.label_list_args: Dict[str, List[TargetNode]] = {}
-    self.string_list_args: Dict[str, List[str]] = {}
-
-
 class PackageNode(ContainerNode):
   _rule_kind: Rule = Rule("__package__")
 
@@ -105,7 +104,7 @@ class PackageNode(ContainerNode):
                        f"{parent_label}{'' if depth <= 2 else '/'}{name}",
                        None)
 
-    self.properties: List[Property] = []
+    self.functions: List[Function] = []
 
   def get_package_folder_path(self) -> str:
     return self.label.split("//", 1)[1]

@@ -1,7 +1,7 @@
 from typing import Pattern, List, Dict, Iterable, Tuple, Set, Optional, cast
-from node import Node, Property, ContainerNode, TargetNode, RootNode, \
+from node import Node, Function, ContainerNode, TargetNode, RootNode, \
   RepositoryNode, PackageNode, FileNode
-from rule import Rule, TensorflowRules, PackageProperties
+from rule import Rule, TensorflowRules, PackageFunctions
 import re
 
 
@@ -127,8 +127,8 @@ class PackageTargetsTransformer:
 
     if isinstance(node, PackageNode):
       pkg_node: PackageNode = cast(PackageNode, node)
-      exports_files_prop: Property = Property(
-          PackageProperties.properties()["exports_files"])
+      exports_files_prop: Function = Function(
+          PackageFunctions.functions()["exports_files"])
       # Export all exported files with public visibility for now
       # refaine it later.
       for source_file in pkg_node.get_targets(kind=FileNode.source_file_kind):
@@ -138,7 +138,7 @@ class PackageTargetsTransformer:
       if exports_files_prop.label_list_args:
         exports_files_prop.string_list_args.setdefault("visibility", []).append(
             "//visibility:public")
-        pkg_node.properties.append(exports_files_prop)
+        pkg_node.functions.append(exports_files_prop)
 
     for child in node.get_containers():
       self._populate_export_files_property(child, file_to_packages)

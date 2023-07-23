@@ -1,5 +1,5 @@
 from typing import Union, Dict, List, Sequence, Iterable, Set, cast
-from node import Property, Node, ContainerNode, TargetNode, FileNode, \
+from node import Function, Node, ContainerNode, TargetNode, FileNode, \
   RepositoryNode, PackageNode
 from rule import TensorflowRules
 
@@ -77,14 +77,14 @@ class BuildTargetsPrinter:
     import_statements_list: List[str] = list(import_statements)
     import_statements_list.sort()
 
-    properties_str: List[str] = [self._print_property(pkg_node, p) for p in
-                                 pkg_node.properties]
+    functions_str: List[str] = [self._print_function(pkg_node, p) for p in
+                                pkg_node.functions]
 
     file_blocks.append(f"# Package: {pkg_node.label}")
     if import_statements:
       file_blocks.append("\n".join(import_statements_list))
-    if properties_str:
-      file_blocks.append("\n".join(properties_str))
+    if functions_str:
+      file_blocks.append("\n".join(functions_str))
     if targets:
       file_blocks.append("\n".join(targets))
 
@@ -110,15 +110,15 @@ class BuildTargetsPrinter:
 )"""
     return [target]
 
-  def _print_property(self, pkg_node: PackageNode, property: Property) -> str:
+  def _print_function(self, pkg_node: PackageNode, func: Function) -> str:
     list_args_block: str = self._print_list_args(pkg_node.label,
-                                                 property.label_list_args,
-                                                 property.string_list_args)
-    property_str = f"""
-{property.kind}({list_args_block}
+                                                 func.label_list_args,
+                                                 func.string_list_args)
+    function_str = f"""
+{func.kind}({list_args_block}
 )"""
 
-    return property_str
+    return function_str
 
   def _print_list_args(self, pkg_label: str,
       label_list_args: Dict[str, List[TargetNode]],
