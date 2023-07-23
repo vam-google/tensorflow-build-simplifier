@@ -125,6 +125,7 @@ class TargetNode(Node):
     self.string_list_args: Dict[str, List[str]] = {}
     self.string_args: Dict[str, str] = {}
     self.bool_args: Dict[str, bool] = {}
+    self.str_str_map_args: Dict[str, Dict[str, str]] = {}
 
     if copy_node:
       self.label_list_args = dict(copy_node.label_list_args)
@@ -132,6 +133,7 @@ class TargetNode(Node):
       self.string_list_args = dict(copy_node.string_list_args)
       self.string_args = dict(copy_node.string_args)
       self.bool_args = dict(copy_node.bool_args)
+      self.str_str_map_args = dict(copy_node.str_str_map_args)
 
   def is_stub(self):
     return self.kind == TargetNode.target_stub_kind

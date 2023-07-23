@@ -23,6 +23,7 @@ class BazelBuildTargetsParser:
     self._arg_string_regex["name"] = re.compile(
         r"\bname\b\s*=\s*\"(?P<value>[0-9a-zA-Z\-\._\+/]+)\"")
     self._arg_bool_regex: Dict[str, Pattern] = {}
+    self._arg_str_str_map_regex: Dict[str, Pattern] = {}
 
     self._rule_parsers: List[
       Tuple[Pattern, Callable[[str], Optional[TargetNode]]]] = []
@@ -55,6 +56,9 @@ class BazelBuildTargetsParser:
     for arg in rule.bool_args:
       self._arg_bool_regex[arg] = re.compile(
           fr"\b{arg}\b\s*=\s*(?P<value>\w+)")
+    for arg in rule.str_str_map_args:
+      self._arg_str_str_map_regex[arg] = re.compile(
+          fr"\b{arg}\b\s*=\s*\{{(?P<values>.+)\}}[,\s]*\n")
 
   def parse_query_build_output(self, query_build_output: str) -> Tuple[
     Dict[str, TargetNode], Set[str], Set[str]]:
@@ -156,6 +160,14 @@ class BazelBuildTargetsParser:
         if match:
           t = self._normalize_value(match.group("value"))
           node.bool_args[bool_arg] = t == "True" or t == "1"
+
+      for str_str_map_arg in rule.str_str_map_args:
+        match = self._arg_str_str_map_regex[str_str_map_arg].search(target_rule)
+        if match:
+          for arg_value in match.group("values").split(", "):
+            arg_k_v: List[str] = arg_value.split(": ")
+            node.str_str_map_args.setdefault(str_str_map_arg, dict())[
+              self._normalize_value(arg_k_v[0])] = self._normalize_value(arg_k_v[1])
 
       return node
 

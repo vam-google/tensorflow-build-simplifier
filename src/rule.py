@@ -8,6 +8,7 @@ class Rule:
       string_list_args: Sequence[str] = (),
       string_args: Sequence[str] = (),
       bool_args: Sequence[str] = (),
+      str_str_map_args: Sequence[str] = (),
       import_statement: str = "") -> None:
     self.kind: str = kind
     self.label_list_args: Sequence[str] = label_list_args
@@ -15,6 +16,7 @@ class Rule:
     self.string_list_args: Sequence[str] = string_list_args
     self.string_args: Sequence[str] = string_args
     self.bool_args: Sequence[str] = bool_args
+    self.str_str_map_args: Sequence[str] = str_str_map_args
     self.import_statement: str = import_statement
 
   def __str__(self) -> str:
@@ -108,7 +110,9 @@ class TensorflowRules:
                                      bool_args=["linkstatic", "alwayslink"],
                                      import_statement="load(\"//tensorflow/tsl:tsl.bzl\", \"cc_header_only_library\")"),
       "generated": Rule(kind="generated"),
-      "config_setting": Rule(kind="config_setting"),
+      "config_setting": Rule(kind="config_setting",
+                             str_str_map_args=["values", "flag_values",
+                                               "define_values"]),
 
   }
 
@@ -143,7 +147,6 @@ class TensorflowRules:
   @staticmethod
   def rules() -> Dict[str, Rule]:
     return TensorflowRules._rules
-
 
   @staticmethod
   def ignored_rules() -> Dict[str, Rule]:
