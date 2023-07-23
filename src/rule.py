@@ -108,11 +108,46 @@ class TensorflowRules:
                                      bool_args=["linkstatic", "alwayslink"],
                                      import_statement="load(\"//tensorflow/tsl:tsl.bzl\", \"cc_header_only_library\")"),
       "generated": Rule(kind="generated"),
+      "config_setting": Rule(kind="config_setting"),
+
+  }
+
+  _ignored_rules: Dict[str, Rule] = {
+      # Should be actually procesed
+      "bool_flag": Rule(kind="bool_flag"),
+      "bool_setting": Rule(kind="bool_setting"),
+      "string_flag": Rule(kind="string_flag"),
+
+      # Really ingored
+      "py_library": Rule(kind="py_library"),
+      "toolchain_type": Rule(kind="toolchain_type"),
+      "adapt_proto_library": Rule(kind="adapt_proto_library"),
+      "armeabi_cc_toolchain_config": Rule(kind="armeabi_cc_toolchain_config"),
+      "cc_toolchain_alias": Rule(kind="cc_toolchain_alias"),
+      "cc_toolchain_config": Rule(kind="cc_toolchain_config"),
+      "cc_toolchain": Rule(kind="cc_toolchain"),
+      "cc_toolchain_suite": Rule(kind="cc_toolchain_suite"),
+      "compiler_flag": Rule(kind="compiler_flag"),
+      "constraint_setting": Rule(kind="constraint_setting"),
+      "constraint_value": Rule(kind="constraint_value"),
+      "enable_cuda_flag": Rule(kind="enable_cuda_flag"),
+      "enum_targets_gen": Rule(kind="enum_targets_gen"),
+      "expand_template": Rule(kind="expand_template"),
+      "package": Rule(kind="package"),
+      "platform": Rule(kind="platform"),
+      "py_runtime_pair": Rule(kind="py_runtime_pair"),
+      "py_runtime": Rule(kind="py_runtime"),
+      "_write_file": Rule(kind="_write_file"),
   }
 
   @staticmethod
   def rules() -> Dict[str, Rule]:
     return TensorflowRules._rules
+
+
+  @staticmethod
+  def ignored_rules() -> Dict[str, Rule]:
+    return TensorflowRules._ignored_rules
 
 
 class PackageFunctions:

@@ -1,4 +1,4 @@
-from typing import Dict, List, Set, Iterable, Tuple, cast
+from typing import Dict, List, Set, Iterable, Union, cast
 
 from parser import BazelBuildTargetsParser
 from node import TargetNode, PackageNode
@@ -11,7 +11,7 @@ class BazelRunner:
       output: str = "build", chunk_size: int = 1500) -> str:
     bazel_query_stdouts: List[str] = []
     for target_chunk in self._split_into_chunks(targets, chunk_size):
-      chunk = "'" + "' union '".join(target_chunk) + "'"
+      chunk: str = "'" + "' union '".join(target_chunk) + "'"
       proc = subprocess.run([
           "bazel",
           "cquery",
@@ -23,6 +23,20 @@ class BazelRunner:
 
       bazel_query_stdouts.append(proc.stdout.decode('utf-8'))
     return "\n".join(bazel_query_stdouts)
+
+  def query_deps_output(self, target: str, config: str = "pycpp_filters",
+      output: str = "label_kind") -> str:
+    proc = subprocess.run([
+        "bazel",
+        "cquery",
+        f"--config={config}" if config else "",
+        # f"'//tensorflow'",
+        f"deps({target})",
+        "--output",
+        f"{output}"
+    ], stdout=subprocess.PIPE)
+
+    return proc.stdout.decode('utf-8')
 
   def _split_into_chunks(self, targets: Set[str], chunk_size) -> Iterable[
     Iterable[str]]:
@@ -48,13 +62,38 @@ class CollectedTargets:
     self.iterations: int = 0
     self.incremental_lengths: List[int] = []
 
+
 class TargetsCollector:
   def __init__(self, runner: BazelRunner,
       bazel_query_parser: BazelBuildTargetsParser) -> None:
     self._runner: BazelRunner = runner
     self._bazel_query_parser: BazelBuildTargetsParser = bazel_query_parser
 
-  def clollect_targets(self, root_target: str, bazel_config: str) -> CollectedTargets:
+  def clollect_dependencies(self, root_target: str,
+      bazel_config: str) -> CollectedTargets:
+
+    res: CollectedTargets = CollectedTargets()
+    res.iterations = 1
+    res.incremental_lengths.append(1)
+
+    internal_nodes: Dict[str, TargetNode]
+    internal_nodes, external_targets, internal_targets = self._bazel_query_parser.parse_query_build_output(
+        self._runner.query_deps_output(root_target, config=bazel_config,
+                                       output="build"))
+    res.all_nodes.update(internal_nodes)
+    res.all_targets.update(internal_targets)
+
+    # Resolve references
+    nodes_by_kind: Dict[str, Dict[
+      str, TargetNode]] = self._bazel_query_parser.parse_query_label_kind_output(
+        self._runner.query_deps_output(root_target, config=bazel_config,
+                                       output="label_kind"))
+    self._resolve_references(res, nodes_by_kind)
+
+    return res
+
+  def clollect_targets(self, root_target: str,
+      bazel_config: str) -> CollectedTargets:
     next_level_internal_targets: Set[str] = {root_target}
 
     res: CollectedTargets = CollectedTargets()
@@ -76,6 +115,12 @@ class TargetsCollector:
     nodes_by_kind: Dict[str, Dict[
       str, TargetNode]] = self._bazel_query_parser.parse_query_label_kind_output(
         self._runner.query_output(res.all_targets, output="label_kind"))
+
+    self._resolve_references(res, nodes_by_kind)
+
+    return res
+
+  def _resolve_references(self, res: CollectedTargets, nodes_by_kind: Dict[str, Dict[str, TargetNode]]) -> None:
     new_all_nodes: Dict[str, TargetNode] = self.resolve_label_references(
         res.all_nodes, nodes_by_kind["source"])
     new_all_nodes.update(res.all_nodes)
@@ -83,13 +128,11 @@ class TargetsCollector:
 
     # Make sure nodes_by_kind and all_nodes share the same node references for
     # the same label
-
     for node_key, node in res.all_nodes.items():
       nodes_of_a_kind: Dict[str, TargetNode] = nodes_by_kind[node.kind.kind]
       if nodes_of_a_kind:
         nodes_of_a_kind[str(node)] = node
 
-    return res
 
   def resolve_label_references(self, nodes_dict: Dict[str, TargetNode],
       files_dict: Dict[str, TargetNode]) -> Dict[str, TargetNode]:

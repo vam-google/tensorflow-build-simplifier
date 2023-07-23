@@ -26,26 +26,35 @@ class BazelBuildTargetsParser:
 
     self._rule_parsers: List[
       Tuple[Pattern, Callable[[str], Optional[TargetNode]]]] = []
+    self._ignored_rule_parsers: List[
+      Tuple[Pattern, Callable[[str], Optional[TargetNode]]]] = []
 
-    for r in TensorflowRules.rules().values():
-      for arg in r.label_list_args:
-        self._arg_label_list_regex[arg] = re.compile(
-            fr"\b{arg}\b\s*=\s*\[(?P<values>.+)\][,\s]*\n")
-      for arg in r.label_args:
-        self._arg_label_regex[arg] = re.compile(
-            fr"\b{arg}\b\s*=\s*\"(?P<value>.*)\"")
-      for arg in r.string_list_args:
-        self._arg_string_list_regex[arg] = re.compile(
-            fr"\b{arg}\b\s*=\s*\[(?P<values>.+)\][,\s]*\n")
-      for arg in r.string_args:
-        self._arg_string_regex[arg] = re.compile(
-            fr"\b{arg}\b\s*=\s*\"(?P<value>.*)\"")
-      for arg in r.bool_args:
-        self._arg_bool_regex[arg] = re.compile(
-            fr"\b{arg}\b\s*=\s*(?P<value>\w+)")
-      self._rule_parsers.append(self._rule_parser(r))
+    for rule in TensorflowRules.rules().values():
+      self._init_args_parsers(rule)
+      self._rule_parsers.append(self._rule_parser(rule))
+
+    for rule in TensorflowRules.ignored_rules().values():
+      self._init_args_parsers(rule)
+      self._ignored_rule_parsers.append(self._rule_parser(rule))
 
     self._nodes_builder = NodesGraphBuilder()
+
+  def _init_args_parsers(self, rule):
+    for arg in rule.label_list_args:
+      self._arg_label_list_regex[arg] = re.compile(
+          fr"\b{arg}\b\s*=\s*\[(?P<values>.+)\][,\s]*\n")
+    for arg in rule.label_args:
+      self._arg_label_regex[arg] = re.compile(
+          fr"\b{arg}\b\s*=\s*\"(?P<value>.*)\"")
+    for arg in rule.string_list_args:
+      self._arg_string_list_regex[arg] = re.compile(
+          fr"\b{arg}\b\s*=\s*\[(?P<values>.+)\][,\s]*\n")
+    for arg in rule.string_args:
+      self._arg_string_regex[arg] = re.compile(
+          fr"\b{arg}\b\s*=\s*\"(?P<value>.*)\"")
+    for arg in rule.bool_args:
+      self._arg_bool_regex[arg] = re.compile(
+          fr"\b{arg}\b\s*=\s*(?P<value>\w+)")
 
   def parse_query_build_output(self, query_build_output: str) -> Tuple[
     Dict[str, TargetNode], Set[str], Set[str]]:
@@ -79,8 +88,14 @@ class BazelBuildTargetsParser:
               internal_targets.add(t.label)
           break
       if unknown_rule:
+        for rule_parser in self._ignored_rule_parsers:
+          if rule_parser[0].search(target_rule):
+            # Found a known rule that should be ignored
+            unknown_rule = False
+            break
+      if unknown_rule:
+        # Trully unknown rule. Either parse it or add to list of uknown ones
         raise ValueError(f"Unknown Rule: {target_rule}")
-        # print(f"------------\nUnknown Rule: {target_rule}\n------------")
 
     return internal_nodes, external_targets, internal_targets
 
@@ -102,6 +117,7 @@ class BazelBuildTargetsParser:
         if rule.kind == "bind":
           node = TargetNode(rule, rule_name.group('value'), f"//external")
         else:
+          # Must be an external node
           return node
       else:
         node = TargetNode(rule, rule_name.group("value"),
@@ -163,7 +179,11 @@ class BazelBuildTargetsParser:
       if rule_kind == "source":
         node = FileNode(match.group("name"), match.group("package"))
       else:
-        kind: Rule = TensorflowRules.rules()[match.group("kind")]
+        kind: Optional[Rule] = TensorflowRules.rules().get(rule_kind)
+        if not kind:
+          if rule_kind not in TensorflowRules.ignored_rules():
+            raise ValueError(f"Unknown Rule: {target_rule}")
+          continue
         node = TargetNode(kind, match.group("name"), match.group("package"))
       internal_nodes[str(node)] = node
 

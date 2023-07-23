@@ -21,7 +21,11 @@ def main(root_target, prefix_path, bazel_config, output_path,
       prefix_path)
   targets_collector: TargetsCollector = TargetsCollector(bazel_runner,
                                                          bazel_query_parser)
-  targets: CollectedTargets = targets_collector.clollect_targets(
+
+  # deps_by_type: Dict[str, Dict[str, TargetNode]] = targets_collector.clollect_dependencies(root_target, bazel_config)
+  # print_nodes_representations(None, deps_by_type, None)
+
+  targets: CollectedTargets = targets_collector.clollect_dependencies(
       root_target, bazel_config)
   print(f"Targets: {len(targets.all_targets)}\n"
         f"Nodes: {len(targets.all_nodes)}\n"
