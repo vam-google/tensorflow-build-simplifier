@@ -9,7 +9,7 @@ from transformer import NodesGraphBuilder, PackageTargetsTransformer
 from parser import BazelBuildTargetsParser
 from printer import BuildFilesPrinter, DebugTreePrinter
 from fileio import BuildFilesWriter
-from node import TargetNode, Node, RepositoryNode
+from node import TargetNode, Node, ContainerNode, RepositoryNode
 
 
 def main(root_target, prefix_path, bazel_config, output_path,
@@ -34,7 +34,7 @@ def main(root_target, prefix_path, bazel_config, output_path,
 
   # Build targets tree and apply necessary transformations
   tree_builder: NodesGraphBuilder = NodesGraphBuilder()
-  tree_nodes: Dict[str, Node] = tree_builder.build_package_tree(
+  tree_nodes: Dict[str, ContainerNode] = tree_builder.build_package_tree(
       targets.all_nodes.values())
 
   targets_transformer: PackageTargetsTransformer = PackageTargetsTransformer()
@@ -45,7 +45,7 @@ def main(root_target, prefix_path, bazel_config, output_path,
 
   populate_build_files(output_path, build_file_name, tree_nodes)
   #
-  print_nodes_representations(tf_root, None, None)
+  # print_nodes_representations(tf_root, None, None)
   # print_nodes_representations(None, nodes_by_kind, None)
   # print_nodes_representations(None, None, tree_nodes)
 
@@ -54,7 +54,7 @@ def main(root_target, prefix_path, bazel_config, output_path,
 
 
 def populate_build_files(output_path: str, build_file_name: str,
-    tree_nodes: Dict[str, Node]) -> None:
+    tree_nodes: Dict[str, ContainerNode]) -> None:
   # Populate BUILD files
   build_files_printer: BuildFilesPrinter = BuildFilesPrinter()
   build_files: Dict[str, str] = build_files_printer.print_build_files(
@@ -66,7 +66,7 @@ def populate_build_files(output_path: str, build_file_name: str,
 
 def print_nodes_representations(tf_root: Optional[RepositoryNode],
     nodes_by_kind: Optional[Dict[str, Dict[str, TargetNode]]],
-    tree_nodes: Optional[Dict[str, Node]]) -> None:
+    tree_nodes: Optional[Dict[str, ContainerNode]]) -> None:
   targets_printer: BuildFilesPrinter = BuildFilesPrinter()
   tree_printer: DebugTreePrinter = DebugTreePrinter()
   if tf_root:

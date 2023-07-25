@@ -18,38 +18,41 @@ class NodesGraphBuilder:
         "package"), match.group("name")
 
   def build_package_tree(self, target_nodes_list: Iterable[Node]) -> Dict[
-    str, Node]:
+    str, ContainerNode]:
     external_root = RootNode("@")
     internal_root = RootNode("")
-    all_nodes: Dict[str, Node] = {external_root.label: external_root,
-                                  internal_root.label: internal_root}
+    all_containers: Dict[str, ContainerNode] = {
+        external_root.label: external_root,
+        internal_root.label: internal_root
+    }
     for node in target_nodes_list:
       external, repo, pkg, name = self.get_label_components(node.label)
       root_node = external_root if external else internal_root
       repo_node: RepositoryNode = RepositoryNode(repo, root_node.label)
-      if str(repo_node) not in all_nodes:
+      if str(repo_node) not in all_containers:
         root_node.children[str(repo_node)] = repo_node
-        all_nodes[str(repo_node)] = repo_node
+        all_containers[str(repo_node)] = repo_node
       else:
-        repo_node = cast(RepositoryNode, all_nodes[str(repo_node)])
+        repo_node = cast(RepositoryNode, all_containers[str(repo_node)])
 
       folders = pkg.split("/")
       container_node: ContainerNode = repo_node
-      all_nodes[str(container_node)] = container_node
+      all_containers[str(container_node)] = container_node
       package_depth: int = 2
       for folder in folders:
         next_package_node: PackageNode = PackageNode(folder,
                                                      str(container_node),
                                                      package_depth)
         next_package_node = cast(PackageNode,
-                                 all_nodes.setdefault(str(next_package_node),
-                                                      next_package_node))
+                                 all_containers.setdefault(
+                                     str(next_package_node),
+                                     next_package_node))
         package_depth += 1
         container_node.children[str(next_package_node)] = next_package_node
         container_node = next_package_node
       container_node.children[str(node)] = node
 
-    return all_nodes
+    return all_containers
 
 
 class PackageTargetsTransformer:

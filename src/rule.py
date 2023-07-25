@@ -116,12 +116,12 @@ class TensorflowRules:
                                                "define_values"]),
       "bool_flag": Rule(kind="bool_flag", bool_args=["build_setting_default"],
                         import_statement="load(\"@bazel_skylib//rules:common_settings.bzl\", \"bool_flag\")"),
+      "bool_setting": Rule(kind="bool_setting", bool_args=["build_setting_default"],
+                        import_statement="load(\"@bazel_skylib//rules:common_settings.bzl\", \"bool_setting\")"),
   }
 
   _ignored_rules: Dict[str, Rule] = {
       # Should be actually procesed
-      "bool_flag": Rule(kind="bool_flag"),
-      "bool_setting": Rule(kind="bool_setting"),
       "string_flag": Rule(kind="string_flag"),
 
       # Really ingored

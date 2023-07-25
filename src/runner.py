@@ -141,23 +141,30 @@ class TargetsCollector:
       if not isinstance(generic_node, TargetNode):
         continue
       target_node: TargetNode = cast(TargetNode, generic_node)
+      ref_str: str
+      resolved_ref: TargetNode
+
       for label_list_arg_name in target_node.label_list_args:
-        refs = target_node.label_list_args[label_list_arg_name]
+        refs: List[TargetNode] = target_node.label_list_args[label_list_arg_name]
         target_node.label_list_args[label_list_arg_name] = []
         for ref in refs:
-          if str(ref) in nodes_dict:
-            target_node.label_list_args[label_list_arg_name].append(
-                nodes_dict[str(ref)])
-          elif str(ref) in files_dict:
-            target_node.label_list_args[label_list_arg_name].append(
-                files_dict[str(ref)])
-            new_nodes[str(ref)] = files_dict[str(ref)]
-          else:
-            target_node.label_list_args[label_list_arg_name].append(ref)
+          resolved_ref = ref
+          ref_str = str(ref)
+          if ref_str in nodes_dict:
+            resolved_ref = nodes_dict[ref_str]
+          elif ref_str in files_dict:
+            resolved_ref = files_dict[ref_str]
+            new_nodes[ref_str] = resolved_ref
+          target_node.label_list_args[label_list_arg_name].append(resolved_ref)
 
       for label_arg_name in target_node.label_args:
-        label_val = target_node.label_args[label_arg_name]
-        if label_val in nodes_dict:
-          target_node.label_args[label_arg_name] = label_val
+        resolved_ref = target_node.label_args[label_arg_name]
+        ref_str = str(resolved_ref)
+        if ref_str in nodes_dict:
+          resolved_ref = nodes_dict[ref_str]
+        elif ref_str in files_dict:
+          resolved_ref = files_dict[ref_str]
+          new_nodes[ref_str] = resolved_ref
+        target_node.label_args[label_arg_name] = resolved_ref
 
     return new_nodes
