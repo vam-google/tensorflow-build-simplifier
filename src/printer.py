@@ -1,4 +1,4 @@
-from typing import Union, Dict, List, Sequence, Iterable, Set, cast
+from typing import Union, Dict, List, Sequence, Set, Tuple, cast
 from node import Function, Node, ContainerNode, TargetNode, FileNode, \
   RepositoryNode, PackageNode
 from rule import TensorflowRules
@@ -73,7 +73,7 @@ class BuildTargetsPrinter:
       if node.kind.import_statement:
         import_statements.add(node.kind.import_statement)
       targets.extend(
-          self._print_build_target(pkg_node, cast(TargetNode, node)))
+          self._print_target(pkg_node, cast(TargetNode, node)))
     import_statements_list: List[str] = list(import_statements)
     import_statements_list.sort()
 
@@ -90,7 +90,7 @@ class BuildTargetsPrinter:
 
     return "" if len(file_blocks) == 1 else "\n".join(file_blocks)
 
-  def _print_build_target(self, pkg_node: PackageNode,
+  def _print_target(self, pkg_node: PackageNode,
       node: TargetNode) -> List[str]:
     if node.kind == TensorflowRules.rules()["bind"]:
       return []
@@ -102,10 +102,12 @@ class BuildTargetsPrinter:
                                                      node.label_args,
                                                      node.string_args)
     bool_args_block: str = self._print_bool_args(node.bool_args)
+    map_args_block: str = self._print_map_args(node.str_str_map_args)
+
     target = f"""
 # {str(node)}
 {node.kind}(
-    name = "{node.name}",{list_args_block}{string_args_block}{bool_args_block}
+    name = "{node.name}",{list_args_block}{string_args_block}{bool_args_block}{map_args_block}
     visibility = ["//visibility:public"],
 )"""
     return [target]
@@ -149,13 +151,24 @@ class BuildTargetsPrinter:
 
     return list_args_block
 
-  def _shorten_label(self, pkg_prefix: str, target: TargetNode):
-    label = str(target)
-    if label.startswith(pkg_prefix):
-      prefix_len = len(pkg_prefix) if isinstance(target, FileNode) else len(
-        pkg_prefix) - 1
-      return label[prefix_len:]
-    return label
+  def _print_map_args(self, str_str_map_args: Dict[str, Dict[str, str]]) -> str:
+    map_args_strs: List[str] = []
+    for arg_name, arg_v in str_str_map_args.items():
+      if not arg_v:
+        continue
+      elif len(arg_v) == 1:
+        v_pair: Tuple[str, str] = next(iter(arg_v.items()))
+        arg_str = f"    {arg_name} = {{\"{v_pair[0]}\": \"{v_pair[1]}\"}},"
+      else:
+        vals_pairs: List[str] = [f"\"{k}\": \"{v}\"" for k, v in arg_v.items()]
+        map_arg_str_values = ",\n        ".join(vals_pairs) + ","
+        arg_str = f"""    {arg_name} = {{
+        {map_arg_str_values}
+    }},"""
+      map_args_strs.append(arg_str)
+
+    map_args_block: str = "\n" + "\n".join(map_args_strs)
+    return map_args_block
 
   def _print_string_args(self, pkg_label: str,
       label_args: Dict[str, TargetNode],
@@ -184,6 +197,14 @@ class BuildTargetsPrinter:
     bool_args_block = "\n" + "\n".join(bool_args_strs) if bool_args_strs else ""
 
     return bool_args_block
+
+  def _shorten_label(self, pkg_prefix: str, target: TargetNode):
+    label = str(target)
+    if label.startswith(pkg_prefix):
+      prefix_len = len(pkg_prefix) if isinstance(target, FileNode) else len(
+          pkg_prefix) - 1
+      return label[prefix_len:]
+    return label
 
 
 class BuildFilesPrinter(BuildTargetsPrinter):

@@ -86,6 +86,7 @@ class TensorflowRules:
                         bool_args=["system_provided"]),
       "tf_gen_options_header": Rule(kind="tf_gen_options_header",
                                     label_args=["template", "output_header"],
+                                    str_str_map_args=["build_settings"],
                                     import_statement="load(\"//tensorflow:tensorflow.bzl\", \"tf_gen_options_header\")"),
       "cc_shared_library": Rule(kind="cc_shared_library",
                                 label_list_args=["roots",
@@ -113,7 +114,8 @@ class TensorflowRules:
       "config_setting": Rule(kind="config_setting",
                              str_str_map_args=["values", "flag_values",
                                                "define_values"]),
-
+      "bool_flag": Rule(kind="bool_flag", bool_args=["build_setting_default"],
+                        import_statement="load(\"@bazel_skylib//rules:common_settings.bzl\", \"bool_flag\")"),
   }
 
   _ignored_rules: Dict[str, Rule] = {
