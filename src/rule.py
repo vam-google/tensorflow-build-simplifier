@@ -39,7 +39,9 @@ class TensorflowRules:
       "cc_library": Rule(kind="cc_library",
                          label_list_args=["srcs", "hdrs", "deps",
                                           "textual_hdrs"],
-                         string_list_args=["copts", "features", "tags"],
+                         string_list_args=["copts", "features", "tags",
+                                           "includes"],
+                         string_args=["strip_include_prefix"],
                          bool_args=["linkstatic", "alwayslink"]),
       "filegroup": Rule(kind="filegroup", label_list_args=["srcs"]),
       "alias": Rule(kind="alias", label_args=["actual"]),
@@ -116,8 +118,9 @@ class TensorflowRules:
                                                "define_values"]),
       "bool_flag": Rule(kind="bool_flag", bool_args=["build_setting_default"],
                         import_statement="load(\"@bazel_skylib//rules:common_settings.bzl\", \"bool_flag\")"),
-      "bool_setting": Rule(kind="bool_setting", bool_args=["build_setting_default"],
-                        import_statement="load(\"@bazel_skylib//rules:common_settings.bzl\", \"bool_setting\")"),
+      "bool_setting": Rule(kind="bool_setting",
+                           bool_args=["build_setting_default"],
+                           import_statement="load(\"@bazel_skylib//rules:common_settings.bzl\", \"bool_setting\")"),
   }
 
   _ignored_rules: Dict[str, Rule] = {

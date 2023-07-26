@@ -45,7 +45,7 @@ def main(root_target, prefix_path, bazel_config, output_path,
 
   populate_build_files(output_path, build_file_name, tree_nodes)
   #
-  # print_nodes_representations(tf_root, None, None)
+  print_nodes_representations(tf_root, None, None)
   # print_nodes_representations(None, nodes_by_kind, None)
   # print_nodes_representations(None, None, tree_nodes)
 
