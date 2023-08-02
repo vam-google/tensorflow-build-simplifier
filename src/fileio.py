@@ -1,10 +1,10 @@
 from typing import Dict
 
 import os
+import subprocess
 
 
 class BuildFilesWriter:
-
   def __init__(self, root_dir_path: str, build_file_name: str) -> None:
     self._root_dir_path: str = root_dir_path
     self._build_file_name: str = build_file_name
@@ -19,3 +19,21 @@ class BuildFilesWriter:
       build_file.write(file_body)
       build_file.flush()
       build_file.close()
+
+
+class GraphvizWriter:
+  def __init__(self, graph_output_path: str) -> None:
+    self._graph_output_path: str = graph_output_path
+
+  def write(self, graph: str) -> None:
+    proc: subprocess.Popen = subprocess.Popen(['twopi', "-Tsvg"], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    stdout, stderr = proc.communicate(input=bytes(graph, "utf-8"))
+
+    with open(self._graph_output_path, "w") as graph_file:
+      graph_file.write(stdout.decode("utf-8"))
+      graph_file.flush()
+
+  def write_as_text(self, graph: str) -> None:
+    with open(f"{self._graph_output_path}.txt", "w") as graph_file:
+      graph_file.write(graph)
+      graph_file.flush()

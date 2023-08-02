@@ -1,4 +1,4 @@
-from typing import Union, Dict, List, Sequence, Set, Tuple, cast
+from typing import Union, Dict, List, Sequence, Set, Tuple, Iterable, cast
 from node import Function, Node, ContainerNode, TargetNode, FileNode, \
   RepositoryNode, PackageNode
 from rule import TensorflowRules
@@ -8,11 +8,10 @@ class DebugTreePrinter:
   def print_nodes_tree(self, repo_root, print_files: bool = True,
       print_targets: bool = True,
       print_deps: bool = True, indent: str = "    ",
-      node_types: Sequence[Node] = (),
       return_string: bool = False) -> Union[str, List[str]]:
     lines: List[str] = []
     self._print(repo_root, lines, -1, print_files, print_targets, print_deps,
-                indent, node_types)
+                indent)
     return "\n".join(lines) if return_string else lines
 
   def print_nodes_by_kind(self,
@@ -34,27 +33,20 @@ class DebugTreePrinter:
     return "\n".join(lines)
 
   def _print(self, node: Node, lines: List[str], depth: int, print_files: bool,
-      print_targets: bool, print_deps: bool, indent: str, node_types) -> None:
-    print_node = not node_types
-    for node_type in node_types:
-      if isinstance(node, node_type):
-        print_node = True
-        break
-
+      print_targets: bool, print_deps: bool, indent: str) -> None:
     if isinstance(node, FileNode):
-      if print_node and print_files:
+      if print_files:
         target_kind = f"{node.kind} " if isinstance(node, TargetNode) else ""
         lines.append(f"{indent * depth}{target_kind}{str(node)}")
     else:
-      if print_node and (
-          not isinstance(node, TargetNode) or print_targets):
+      if (not isinstance(node, TargetNode) or print_targets):
         target_kind = f"{node.kind} " if isinstance(node, TargetNode) else ""
         lines.append(f"{indent * depth}{target_kind}{str(node)}")
 
     if isinstance(node, ContainerNode):
       for _, v in cast(ContainerNode, node).children.items():
         self._print(v, lines, depth + 1, print_files, print_targets, print_deps,
-                    indent, node_types)
+                    indent)
 
 
 class BuildTargetsPrinter:
@@ -226,3 +218,39 @@ class BuildFilesPrinter(BuildTargetsPrinter):
     file_body = self.print_build_file(pkg_node)
     if file_body:
       build_files_dict[pkg_node.get_package_folder_path()] = file_body
+
+
+class GraphPrinter:
+  def print_target_graph(self, root: TargetNode) -> str:
+    edges: List[str] = []
+    visited: Dict[str, TargetNode] = {}
+    path: Dict[str, TargetNode] = {}
+    self._print_target_edges(root, edges, visited, path)
+    edges_str = "  \n".join(edges)
+
+    return f"""
+digraph {{
+edge [color="green",arrowsize="0.6"];
+node [fillcolor="white",shape="plain",style="filled",height="0.02",fontsize="9",fontname="Arial"];
+graph [ranksep="12.0",rankdir="LR",fontsize="8",fontname="Arial",outputorder="edgesfirst"];
+  {edges_str}
+}}"""
+
+  def _print_target_edges(self, from_target: TargetNode, edges: List[str],
+      visited: Dict[str, TargetNode], path: Dict[str, TargetNode]) -> None:
+    from_label: str = str(from_target)
+    if from_label in path:
+      cycle_path = " -> ".join(path) + " -> " + from_label
+      raise ValueError(f"Cycle found: {cycle_path}")
+
+    if from_label in visited:
+      return
+
+    path[from_label] = from_target
+    for to_target in from_target.get_targets():
+      if not to_target.is_external() and not isinstance(to_target, FileNode):
+        edges.append(f'"{str(from_target)}" -> "{str(to_target)}";')
+        self._print_target_edges(to_target, edges, visited, path)
+    del path[from_label]
+
+    visited[from_label] = from_target

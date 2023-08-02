@@ -65,7 +65,7 @@ class ContainerNode(Node):
       if isinstance(node, ContainerNode) and (not kind or node.kind == kind):
         yield cast(ContainerNode, node)
 
-  def get_targets(self, kind: Optional[Rule]) -> Iterable[TargetNode]:
+  def get_targets(self, kind: Optional[Rule] = None) -> Iterable[TargetNode]:
     for node in self.children.values():
       if isinstance(node, TargetNode) and (not kind or (node.kind == kind)):
         yield cast(TargetNode, node)
@@ -106,6 +106,9 @@ class PackageNode(ContainerNode):
 
     self.functions: List[Function] = []
 
+  def get_packages(self) -> Iterable[PackageNode]:
+    return cast(Iterable[PackageNode], self.get_containers())
+
   def get_package_folder_path(self) -> str:
     return self.label.split("//", 1)[1]
 
@@ -138,6 +141,9 @@ class TargetNode(Node):
   def is_stub(self):
     return self.kind == TargetNode.target_stub_kind
 
+  def is_external(self):
+    return self.label.startswith("@")
+
   @staticmethod
   def create_stub(label: str) -> TargetNode:
     pkg_and_name = label.split(":")
@@ -147,7 +153,7 @@ class TargetNode(Node):
   def get_parent_label(self) -> str:
     return self.label[:self.label.rfind(":")]
 
-  def get_targets(self, kind: Optional[Rule]) -> Iterable[TargetNode]:
+  def get_targets(self, kind: Optional[Rule] = None) -> Iterable[TargetNode]:
     # targets: Dict[str, TargetNode] = {}
     for label_list_arg in self.label_list_args.values():
       for label_list_node in label_list_arg:

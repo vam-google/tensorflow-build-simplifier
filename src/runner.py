@@ -69,7 +69,7 @@ class TargetsCollector:
     self._runner: BazelRunner = runner
     self._bazel_query_parser: BazelBuildTargetsParser = bazel_query_parser
 
-  def clollect_dependencies(self, root_target: str,
+  def collect_dependencies(self, root_target: str,
       bazel_config: str) -> CollectedTargets:
 
     res: CollectedTargets = CollectedTargets()
@@ -92,7 +92,7 @@ class TargetsCollector:
 
     return res
 
-  def clollect_targets(self, root_target: str,
+  def collect_targets(self, root_target: str,
       bazel_config: str) -> CollectedTargets:
     next_level_internal_targets: Set[str] = {root_target}
 
@@ -168,3 +168,6 @@ class TargetsCollector:
         target_node.label_args[label_arg_name] = resolved_ref
 
     return new_nodes
+
+
+
