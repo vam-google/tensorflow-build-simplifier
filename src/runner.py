@@ -89,6 +89,7 @@ class TargetsCollector:
         self._runner.query_deps_output(root_target, config=bazel_config,
                                        output="label_kind"))
     self._resolve_references(res, nodes_by_kind)
+    res.nodes_by_kind = nodes_by_kind
 
     return res
 
@@ -117,6 +118,7 @@ class TargetsCollector:
         self._runner.query_output(res.all_targets, output="label_kind"))
 
     self._resolve_references(res, nodes_by_kind)
+    res.nodes_by_kind = nodes_by_kind
 
     return res
 

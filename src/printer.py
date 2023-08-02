@@ -6,12 +6,10 @@ from rule import TensorflowRules
 
 class DebugTreePrinter:
   def print_nodes_tree(self, repo_root, print_files: bool = True,
-      print_targets: bool = True,
-      print_deps: bool = True, indent: str = "    ",
+      print_targets: bool = True, indent: str = "    ",
       return_string: bool = False) -> Union[str, List[str]]:
     lines: List[str] = []
-    self._print(repo_root, lines, -1, print_files, print_targets, print_deps,
-                indent)
+    self._print(repo_root, lines, -1, print_files, print_targets, indent)
     return "\n".join(lines) if return_string else lines
 
   def print_nodes_by_kind(self,
@@ -25,15 +23,16 @@ class DebugTreePrinter:
       lines.append(f"{k}: {len(sorted_labels)}")
       lines.append("    " + "\n    ".join(sorted_labels))
       total_count += len(sorted_labels)
-      count_lines.append(f"{k}: {len(sorted_labels)}")
+      count_lines.append(f"    {k}: {len(sorted_labels)}")
 
+    lines.append("\nNodes by kind summary:")
     lines.extend(count_lines)
-    lines.append(f"\nTotal Items: {total_count}")
+    lines.append(f"\nTotal Nodes: {total_count}")
 
     return "\n".join(lines)
 
   def _print(self, node: Node, lines: List[str], depth: int, print_files: bool,
-      print_targets: bool, print_deps: bool, indent: str) -> None:
+      print_targets: bool, indent: str) -> None:
     if isinstance(node, FileNode):
       if print_files:
         target_kind = f"{node.kind} " if isinstance(node, TargetNode) else ""
@@ -45,8 +44,7 @@ class DebugTreePrinter:
 
     if isinstance(node, ContainerNode):
       for _, v in cast(ContainerNode, node).children.items():
-        self._print(v, lines, depth + 1, print_files, print_targets, print_deps,
-                    indent)
+        self._print(v, lines, depth + 1, print_files, print_targets, indent)
 
 
 class BuildTargetsPrinter:
@@ -221,6 +219,54 @@ class BuildFilesPrinter(BuildTargetsPrinter):
 
 
 class GraphPrinter:
+  def print_package_graph(self, root: ContainerNode) -> str:
+    edges: Dict[str, int] = {}
+    for sub_container in root.get_containers():
+      self._package_graph_edges(cast(PackageNode, sub_container), edges)
+
+    edge_strs: List[str] = []
+    visited_reverse_edges: Set[str] = set()
+    for edge, weight in edges.items():
+      # edge_strs.append(f'{edge} [label="{weight}",weight="{weight}",color="red;0.2:grey:green;0.2"]')
+      from_node, to_node = edge.split(" -> ")
+      reverse_edge: str = f'{to_node} -> {from_node}'
+      if edge in visited_reverse_edges:
+        continue
+      if reverse_edge in edges:
+        visited_reverse_edges.add(reverse_edge)
+        edge_strs.append(f'{edge} [dir="none",color="blue;0.2:grey80:blue;0.2"]')
+      else:
+        edge_strs.append(f'{edge} [color="red;0.2:grey80:green;0.2"]')
+
+    edges_str = "  \n".join(edge_strs)
+    return f"""
+digraph Packages {{
+edge [color="green",arrowsize="0.6",arrowhead="none"];
+node [fillcolor="white",shape="plain",style="filled",height="0.02",fontsize="9",fontname="Arial"];
+graph [ranksep="11.0",rankdir="LR",fontsize="7",fontname="Arial",outputorder="edgesfirst",root="//tensorflow/core"];
+{edges_str}
+}}"""
+
+
+  def _package_graph_edges(self, pkg: PackageNode, edges: Dict[str, int]) -> None:
+    pkg_label: str = str(pkg)
+    for target_in_pkg in pkg.get_targets():
+      # Don't count files as actual edges
+      if isinstance(target_in_pkg, FileNode):
+        continue
+      for referenced_target in target_in_pkg.get_targets():
+        # if isinstance(referenced_target, FileNode):
+        #   continue
+        referenced_pkg_label: str = referenced_target.get_parent_label()
+        if referenced_target.is_external() or referenced_pkg_label == pkg_label:
+          continue
+
+        edge: str = f'"{pkg_label}" -> "{referenced_pkg_label}"'
+        edges[edge] = (edges[edge] + 1) if edge in edges else 1
+
+    for sub_pkg in pkg.get_packages():
+      self._package_graph_edges(sub_pkg, edges)
+
   def print_target_graph(self, root: TargetNode) -> str:
     edges: List[str] = []
     visited: Dict[str, TargetNode] = {}
@@ -229,10 +275,10 @@ class GraphPrinter:
     edges_str = "  \n".join(edges)
 
     return f"""
-digraph {{
-edge [color="green",arrowsize="0.6"];
+digraph Targets {{
+edge [color="green",arrowsize="0.6",arrowhead="none"];
 node [fillcolor="white",shape="plain",style="filled",height="0.02",fontsize="9",fontname="Arial"];
-graph [ranksep="12.0",rankdir="LR",fontsize="8",fontname="Arial",outputorder="edgesfirst"];
+graph [ranksep="11.0",rankdir="LR",fontsize="7",fontname="Arial",outputorder="edgesfirst",root="//tensorflow/core:framework"];
   {edges_str}
 }}"""
 
@@ -247,9 +293,11 @@ graph [ranksep="12.0",rankdir="LR",fontsize="8",fontname="Arial",outputorder="ed
       return
 
     path[from_label] = from_target
+
+
     for to_target in from_target.get_targets():
       if not to_target.is_external() and not isinstance(to_target, FileNode):
-        edges.append(f'"{str(from_target)}" -> "{str(to_target)}";')
+        edges.append(f'"{str(from_target)}" -> "{str(to_target)}" [color="red;0.2:grey80:green;0.2"];')
         self._print_target_edges(to_target, edges, visited, path)
     del path[from_label]
 

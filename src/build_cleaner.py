@@ -18,7 +18,8 @@ class BuildCleanerCli:
     self._prefix_path: str = os.getcwd()
     self._bazel_config: str
     self._output_build_path: str
-    self._output_package_graph_path: str
+    self._debug_package_graph_path: str = ""
+    self._debug_target_graph_path: str = ""
     self._build_file_name: str = "BUILD"
     self._debug_build: bool = False
     self._debug_nodes_by_kind: bool = False
@@ -34,8 +35,10 @@ class BuildCleanerCli:
         self._bazel_config = arg_val
       elif arg_name == "--output_build_path":
         self._output_build_path = arg_val
-      elif arg_name == "--output_package_graph_path":
-        self._output_package_graph_path = arg_val
+      elif arg_name == "--debug_target_graph_path":
+        self._debug_target_graph_path = arg_val
+      elif arg_name == "--debug_package_graph_path":
+        self._debug_package_graph_path = arg_val
       elif arg_name == "--build_file_name":
         self._build_file_name = arg_val
       elif arg_name == "--debug_build":
@@ -77,16 +80,17 @@ class BuildCleanerCli:
       self._generate_build_files(tf_repo, self._output_build_path,
                                  self._build_file_name)
 
-    if self._output_package_graph_path:
-      self._generate_package_visualization(targets.all_nodes[self._root_target],
-                                           self._output_package_graph_path)
-
+    if self._debug_target_graph_path:
+      self._print_target_graph(targets.all_nodes[self._root_target],
+                                           self._debug_target_graph_path)
+    if self._debug_package_graph_path:
+      self._print_package_graph(tf_repo, self._debug_package_graph_path)
     if self._debug_build:
       self._print_debug_info(tf_root, None, None)
-    if self._debug_nodes_by_kind:
-      self._print_debug_info(None, targets.nodes_by_kind, None)
     if self._debug_tree:
       self._print_debug_info(None, None, tree_nodes)
+    if self._debug_nodes_by_kind:
+      self._print_debug_info(None, targets.nodes_by_kind, None)
 
     end: float = time.time()
     print(f"Total Time: {end - start}")
@@ -99,14 +103,32 @@ class BuildCleanerCli:
                                                             build_file_name)
     build_files_writer.write(build_files)
 
-  def _generate_package_visualization(self, root: TargetNode,
-      output_package_graph_path: str) -> None:
+  def _print_target_graph(self, root: TargetNode,
+      output_target_graph_path: str) -> None:
     graph_printer: GraphPrinter = GraphPrinter()
     graph: str = graph_printer.print_target_graph(root)
+    writer: GraphvizWriter = GraphvizWriter(output_target_graph_path)
+    writer.write_as_text(graph)
+    writer.write(graph)
+
+    print("vvvvv DEBUG: Target graph path vvvvv")
+    print(f"SVG Representation: {output_target_graph_path}")
+    print(f"Dot Representation: {output_target_graph_path}.dot")
+    print("^^^^^ DEBUG: Target graph path ^^^^^\n")
+
+
+  def _print_package_graph(self, root: RepositoryNode,
+      output_package_graph_path: str) -> None:
+    graph_printer: GraphPrinter = GraphPrinter()
+    graph: str = graph_printer.print_package_graph(root)
     writer: GraphvizWriter = GraphvizWriter(output_package_graph_path)
     writer.write_as_text(graph)
     writer.write(graph)
-    # print(graph)
+
+    print("vvvvv DEBUG: Package graph path vvvvv")
+    print(f"SVG Representation: {output_package_graph_path}")
+    print(f"Dot Representation: {output_package_graph_path}.dot")
+    print("^^^^^ DEBUG: Package graph path ^^^^^\n")
 
   def _print_debug_info(self, tf_root: Optional[RepositoryNode],
       nodes_by_kind: Optional[Dict[str, Dict[str, TargetNode]]],
@@ -115,14 +137,20 @@ class BuildCleanerCli:
     tree_printer: DebugTreePrinter = DebugTreePrinter()
 
     if tf_root:
+      print("vvvvv DEBUG: Build vvvvv")
       files_dict: Dict[str, str] = targets_printer.print_build_files(tf_root)
       for file_path, file_body in files_dict.items():
         print()
         print(file_body)
+      print("^^^^^ DEBUG: Build ^^^^^\n")
     if nodes_by_kind:
+      print("vvvvv DEBUG: Nodes by kind vvvvv")
       print(tree_printer.print_nodes_by_kind(nodes_by_kind))
+      print("^^^^^ DEBUG: Nodes by kind ^^^^^\n")
     if tree_nodes:
+      print("vvvvv DEBUG: Tree vvvvv")
       print(tree_printer.print_nodes_tree(tree_nodes[""], return_string=True))
+      print("^^^^^ DEBUG: Tree ^^^^^\n")
 
 
 if __name__ == '__main__':
