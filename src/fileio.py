@@ -22,18 +22,15 @@ class BuildFilesWriter:
 
 
 class GraphvizWriter:
-  def __init__(self, graph_output_path: str) -> None:
-    self._graph_output_path: str = graph_output_path
+  def write_dot(self, graph: str, output_path: str) -> None:
+    with open(output_path, "w") as graph_file:
+      graph_file.write(graph)
+      graph_file.flush()
 
-  def write(self, graph: str) -> None:
+  def write_svg(self, graph: str, output_path: str) -> None:
     proc: subprocess.Popen = subprocess.Popen(['twopi', "-Tsvg"], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     stdout, stderr = proc.communicate(input=bytes(graph, "utf-8"))
 
-    with open(self._graph_output_path, "w") as graph_file:
+    with open(output_path, "w") as graph_file:
       graph_file.write(stdout.decode("utf-8"))
-      graph_file.flush()
-
-  def write_as_text(self, graph: str) -> None:
-    with open(f"{self._graph_output_path}.txt", "w") as graph_file:
-      graph_file.write(graph)
       graph_file.flush()

@@ -234,7 +234,8 @@ class GraphPrinter:
         continue
       if reverse_edge in edges:
         visited_reverse_edges.add(reverse_edge)
-        edge_strs.append(f'{edge} [dir="none",color="blue;0.2:grey80:blue;0.2"]')
+        edge_strs.append(
+            f'{edge} [dir="none",color="blue;0.2:grey80:blue;0.2"]')
       else:
         edge_strs.append(f'{edge} [color="red;0.2:grey80:green;0.2"]')
 
@@ -247,8 +248,8 @@ graph [ranksep="11.0",rankdir="LR",fontsize="7",fontname="Arial",outputorder="ed
 {edges_str}
 }}"""
 
-
-  def _package_graph_edges(self, pkg: PackageNode, edges: Dict[str, int]) -> None:
+  def _package_graph_edges(self, pkg: PackageNode,
+      edges: Dict[str, int]) -> None:
     pkg_label: str = str(pkg)
     for target_in_pkg in pkg.get_targets():
       # Don't count files as actual edges
@@ -267,38 +268,82 @@ graph [ranksep="11.0",rankdir="LR",fontsize="7",fontname="Arial",outputorder="ed
     for sub_pkg in pkg.get_packages():
       self._package_graph_edges(sub_pkg, edges)
 
-  def print_target_graph(self, root: TargetNode) -> str:
-    edges: List[str] = []
-    visited: Dict[str, TargetNode] = {}
+  def print_target_graph(self, root: TargetNode) -> Tuple[str, str]:
+    inbound_edges: Dict[TargetNode, List[TargetNode]] = {}
+    outbound_edges: Dict[TargetNode, List[TargetNode]] = {}
     path: Dict[str, TargetNode] = {}
-    self._print_target_edges(root, edges, visited, path)
-    edges_str = "  \n".join(edges)
+    self._print_target_edges(root, outbound_edges, inbound_edges, path)
+
+    in_root, in_dot_nodes, in_dot_edges = self._print_dot_nodes_and_edges(
+        inbound_edges, outbound_edges, True)
+    out_root, out_dot_nodes, out_dot_edges = self._print_dot_nodes_and_edges(
+        outbound_edges, inbound_edges, False)
+
+    return (self._print_dot_graph(in_root, in_dot_nodes, in_dot_edges),
+            self._print_dot_graph(out_root, out_dot_nodes, out_dot_edges))
+
+  def _print_dot_graph(self, root_node: str, dot_nodes: List[str],
+      dot_edges: List[str]) -> str:
+    nodes_str = "  \n".join(dot_nodes)
+    edges_str = "  \n".join(dot_edges)
 
     return f"""
 digraph Targets {{
-edge [color="green",arrowsize="0.6",arrowhead="none"];
-node [fillcolor="white",shape="plain",style="filled",height="0.02",fontsize="9",fontname="Arial"];
-graph [ranksep="11.0",rankdir="LR",fontsize="7",fontname="Arial",outputorder="edgesfirst",root="//tensorflow/core:framework"];
-  {edges_str}
+edge [arrowhead="none",color="red;0.2:grey80:green;0.2"];
+node [fillcolor="white",shape="plain",style="filled",height="0.02",fontsize="8",fontname="Arial"];
+graph [ranksep="13.0",rankdir="LR",outputorder="edgesfirst",root="{root_node}"];
+{nodes_str}
+{edges_str}
 }}"""
 
-  def _print_target_edges(self, from_target: TargetNode, edges: List[str],
-      visited: Dict[str, TargetNode], path: Dict[str, TargetNode]) -> None:
+  def _print_dot_nodes_and_edges(self,
+      direct_edges: Dict[TargetNode, List[TargetNode]],
+      reverse_edges: Dict[TargetNode, List[TargetNode]], inbound: bool) -> \
+      Tuple[str, List[str], List[str]]:
+    nodes_and_edges: List[
+      Tuple[TargetNode, List[TargetNode], List[TargetNode]]] = []
+    for the_node, direct_nodes in direct_edges.items():
+      nodes_and_edges.append((the_node, direct_nodes, reverse_edges[the_node]))
+    nodes_and_edges.sort(key=lambda x: -((len(x[1]) << 15) | len(x[2])))
+
+    root_node: str = str(nodes_and_edges[0][0])
+
+    dot_nodes: List[str] = []
+    dot_edges: List[str] = []
+    node_no: int = 1
+    for the_node, direct_nodes, reverse_nodes in nodes_and_edges:
+      dot_nodes.append(
+          f'"{the_node}" [label="{node_no}:{len(direct_nodes)}:{len(reverse_nodes)}"];')
+      node_no += 1
+      for direct_node in direct_nodes:
+        if inbound:
+          dot_edges.append(f'"{direct_node}" -> "{the_node}";')
+        else:
+          dot_edges.append(f'"{the_node}" -> "{direct_node}";')
+
+    return root_node, dot_nodes, dot_edges
+
+  def _print_target_edges(self, from_target: TargetNode,
+      visited: Dict[TargetNode, List[TargetNode]],
+      reverse_visited: Dict[TargetNode, List[TargetNode]],
+      path: Dict[str, TargetNode]) -> None:
     from_label: str = str(from_target)
     if from_label in path:
       cycle_path = " -> ".join(path) + " -> " + from_label
       raise ValueError(f"Cycle found: {cycle_path}")
 
-    if from_label in visited:
+    if from_target in visited:
       return
 
     path[from_label] = from_target
-
+    visited.setdefault(from_target, [])
+    # to make sure that root also get to reverse_visited
+    reverse_visited.setdefault(from_target, [])
 
     for to_target in from_target.get_targets():
       if not to_target.is_external() and not isinstance(to_target, FileNode):
-        edges.append(f'"{str(from_target)}" -> "{str(to_target)}" [color="red;0.2:grey80:green;0.2"];')
-        self._print_target_edges(to_target, edges, visited, path)
+        visited[from_target].append(to_target)
+        reverse_visited.setdefault(to_target, []).append(from_target)
+        # edges.append(f'"{str(from_target)}" -> "{str(to_target)}" [color="red;0.2:grey80:green;0.2"];')
+        self._print_target_edges(to_target, visited, reverse_visited, path)
     del path[from_label]
-
-    visited[from_label] = from_target
