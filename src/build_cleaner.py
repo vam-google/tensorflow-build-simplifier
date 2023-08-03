@@ -82,7 +82,7 @@ class BuildCleanerCli:
 
     if self._debug_target_graph_path:
       self._print_target_graph(targets.all_nodes[self._root_target],
-                                           self._debug_target_graph_path)
+                               self._debug_target_graph_path)
     # if self._debug_package_graph_path:
     #   self._print_package_graph(tf_repo, self._debug_package_graph_path)
     if self._debug_build:
@@ -106,10 +106,10 @@ class BuildCleanerCli:
   def _print_target_graph(self, root: TargetNode, graph_path: str) -> None:
     graph_printer: GraphPrinter = GraphPrinter()
     inbound_graph, outbound_graph = graph_printer.print_target_graph(root)
-    inbound_path_dot:str = f"{graph_path}.inbound.dot"
-    inbound_path_svg:str = f"{graph_path}.inbound.svg"
-    outbound_path_dot:str = f"{graph_path}.outbound.dot"
-    outbound_path_svg:str = f"{graph_path}.outbound.svg"
+    inbound_path_dot: str = f"{graph_path}.inbound.dot"
+    inbound_path_svg: str = f"{graph_path}.inbound.svg"
+    outbound_path_dot: str = f"{graph_path}.outbound.dot"
+    outbound_path_svg: str = f"{graph_path}.outbound.svg"
 
     writer: GraphvizWriter = GraphvizWriter()
     writer.write_dot(inbound_graph, inbound_path_dot)
@@ -124,21 +124,21 @@ class BuildCleanerCli:
     print(f"SVG Outbound: {outbound_path_svg}")
     print("^^^^^ DEBUG: Target graph path ^^^^^\n")
 
-
   def _print_package_graph(self, root: RepositoryNode, graph_path: str) -> None:
-    graph_printer: GraphPrinter = GraphPrinter()
-    graph: str = graph_printer.print_package_graph(root)
-    writer: GraphvizWriter = GraphvizWriter()
-    path_dot:str = f"{graph_path}.dot"
-    path_svg:str = f"{graph_path}.svg"
-
-    writer.write_dot(graph, path_dot)
-    writer.write_svg(graph, path_svg)
-
-    print("vvvvv DEBUG: Package graph path vvvvv")
-    print(f"DOT: {path_dot}")
-    print(f"SVG: {path_svg}")
-    print("^^^^^ DEBUG: Package graph path ^^^^^\n")
+    pass
+    # graph_printer: GraphPrinter = GraphPrinter()
+    # graph: str = graph_printer.print_package_graph(root)
+    # writer: GraphvizWriter = GraphvizWriter()
+    # path_dot:str = f"{graph_path}.dot"
+    # path_svg:str = f"{graph_path}.svg"
+    #
+    # writer.write_dot(graph, path_dot)
+    # writer.write_svg(graph, path_svg)
+    #
+    # print("vvvvv DEBUG: Package graph path vvvvv")
+    # print(f"DOT: {path_dot}")
+    # print(f"SVG: {path_svg}")
+    # print("^^^^^ DEBUG: Package graph path ^^^^^\n")
 
   def _print_debug_info(self, tf_root: Optional[RepositoryNode],
       nodes_by_kind: Optional[Dict[str, Dict[str, TargetNode]]],

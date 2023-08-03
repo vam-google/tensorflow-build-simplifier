@@ -219,76 +219,32 @@ class BuildFilesPrinter(BuildTargetsPrinter):
 
 
 class GraphPrinter:
-  def print_package_graph(self, root: ContainerNode) -> str:
-    edges: Dict[str, int] = {}
-    for sub_container in root.get_containers():
-      self._package_graph_edges(cast(PackageNode, sub_container), edges)
-
-    edge_strs: List[str] = []
-    visited_reverse_edges: Set[str] = set()
-    for edge, weight in edges.items():
-      # edge_strs.append(f'{edge} [label="{weight}",weight="{weight}",color="red;0.2:grey:green;0.2"]')
-      from_node, to_node = edge.split(" -> ")
-      reverse_edge: str = f'{to_node} -> {from_node}'
-      if edge in visited_reverse_edges:
-        continue
-      if reverse_edge in edges:
-        visited_reverse_edges.add(reverse_edge)
-        edge_strs.append(
-            f'{edge} [dir="none",color="blue;0.2:grey80:blue;0.2"]')
-      else:
-        edge_strs.append(f'{edge} [color="red;0.2:grey80:green;0.2"]')
-
-    edges_str = "  \n".join(edge_strs)
-    return f"""
-digraph Packages {{
-edge [color="green",arrowsize="0.6",arrowhead="none"];
-node [fillcolor="white",shape="plain",style="filled",height="0.02",fontsize="9",fontname="Arial"];
-graph [ranksep="11.0",rankdir="LR",fontsize="7",fontname="Arial",outputorder="edgesfirst",root="//tensorflow/core"];
-{edges_str}
-}}"""
-
-  def _package_graph_edges(self, pkg: PackageNode,
-      edges: Dict[str, int]) -> None:
-    pkg_label: str = str(pkg)
-    for target_in_pkg in pkg.get_targets():
-      # Don't count files as actual edges
-      if isinstance(target_in_pkg, FileNode):
-        continue
-      for referenced_target in target_in_pkg.get_targets():
-        # if isinstance(referenced_target, FileNode):
-        #   continue
-        referenced_pkg_label: str = referenced_target.get_parent_label()
-        if referenced_target.is_external() or referenced_pkg_label == pkg_label:
-          continue
-
-        edge: str = f'"{pkg_label}" -> "{referenced_pkg_label}"'
-        edges[edge] = (edges[edge] + 1) if edge in edges else 1
-
-    for sub_pkg in pkg.get_packages():
-      self._package_graph_edges(sub_pkg, edges)
-
   def print_target_graph(self, root: TargetNode) -> Tuple[str, str]:
     inbound_edges: Dict[TargetNode, List[TargetNode]] = {}
     outbound_edges: Dict[TargetNode, List[TargetNode]] = {}
     path: Dict[str, TargetNode] = {}
-    self._print_target_edges(root, outbound_edges, inbound_edges, path)
+    self._dfs_graph(root, outbound_edges, inbound_edges, path)
+    inbound_nodes_and_edges = self._sorted_nodes_by_edge_degree(inbound_edges,
+                                                                outbound_edges)
+    outbound_nodes_and_edges = self._sorted_nodes_by_edge_degree(outbound_edges,
+                                                                 inbound_edges)
 
     in_root, in_dot_nodes, in_dot_edges = self._print_dot_nodes_and_edges(
-        inbound_edges, outbound_edges, True)
+        inbound_nodes_and_edges, True)
     out_root, out_dot_nodes, out_dot_edges = self._print_dot_nodes_and_edges(
-        outbound_edges, inbound_edges, False)
+        outbound_nodes_and_edges, False)
 
-    return (self._print_dot_graph(in_root, in_dot_nodes, in_dot_edges),
-            self._print_dot_graph(out_root, out_dot_nodes, out_dot_edges))
+    return (
+        self._print_dot_graph(in_root, in_dot_nodes, in_dot_edges, "Inbound"),
+        self._print_dot_graph(out_root, out_dot_nodes, out_dot_edges,
+                              "Outbound"))
 
   def _print_dot_graph(self, root_node: str, dot_nodes: List[str],
-      dot_edges: List[str]) -> str:
+      dot_edges: List[str], graph_name: str) -> str:
     nodes_str = "  \n".join(dot_nodes)
     edges_str = "  \n".join(dot_edges)
 
-    return f"""
-digraph Targets {{
+    return f"""digraph {graph_name}Targets {{
 edge [arrowhead="none",color="red;0.2:grey80:green;0.2"];
 node [fillcolor="white",shape="plain",style="filled",height="0.02",fontsize="8",fontname="Arial"];
 graph [ranksep="13.0",rankdir="LR",outputorder="edgesfirst",root="{root_node}"];
@@ -297,17 +253,11 @@ graph [ranksep="13.0",rankdir="LR",outputorder="edgesfirst",root="{root_node}"];
 }}"""
 
   def _print_dot_nodes_and_edges(self,
-      direct_edges: Dict[TargetNode, List[TargetNode]],
-      reverse_edges: Dict[TargetNode, List[TargetNode]], inbound: bool) -> \
+      nodes_and_edges: List[
+        Tuple[TargetNode, List[TargetNode], Set[TargetNode]]], inbound: bool) -> \
       Tuple[str, List[str], List[str]]:
-    nodes_and_edges: List[
-      Tuple[TargetNode, List[TargetNode], List[TargetNode]]] = []
-    for the_node, direct_nodes in direct_edges.items():
-      nodes_and_edges.append((the_node, direct_nodes, reverse_edges[the_node]))
-    nodes_and_edges.sort(key=lambda x: -((len(x[1]) << 15) | len(x[2])))
 
     root_node: str = str(nodes_and_edges[0][0])
-
     dot_nodes: List[str] = []
     dot_edges: List[str] = []
     node_no: int = 1
@@ -323,7 +273,20 @@ graph [ranksep="13.0",rankdir="LR",outputorder="edgesfirst",root="{root_node}"];
 
     return root_node, dot_nodes, dot_edges
 
-  def _print_target_edges(self, from_target: TargetNode,
+  def _sorted_nodes_by_edge_degree(self,
+      direct_edges: Dict[TargetNode, List[TargetNode]],
+      reverse_edges: Dict[TargetNode, List[TargetNode]]) -> List[
+    Tuple[TargetNode, List[TargetNode], Set[TargetNode]]]:
+    nodes_and_edges: List[
+      Tuple[TargetNode, List[TargetNode], Set[TargetNode]]] = []
+    for the_node, direct_nodes in direct_edges.items():
+      nodes_and_edges.append(
+          (the_node, direct_nodes, set(reverse_edges[the_node])))
+    nodes_and_edges.sort(key=lambda x: -((len(x[1]) << 15) | len(x[2])))
+
+    return nodes_and_edges
+
+  def _dfs_graph(self, from_target: TargetNode,
       visited: Dict[TargetNode, List[TargetNode]],
       reverse_visited: Dict[TargetNode, List[TargetNode]],
       path: Dict[str, TargetNode]) -> None:
@@ -344,6 +307,9 @@ graph [ranksep="13.0",rankdir="LR",outputorder="edgesfirst",root="{root_node}"];
       if not to_target.is_external() and not isinstance(to_target, FileNode):
         visited[from_target].append(to_target)
         reverse_visited.setdefault(to_target, []).append(from_target)
-        # edges.append(f'"{str(from_target)}" -> "{str(to_target)}" [color="red;0.2:grey80:green;0.2"];')
-        self._print_target_edges(to_target, visited, reverse_visited, path)
+        self._dfs_graph(to_target, visited, reverse_visited, path)
     del path[from_label]
+
+  # def _construct_pkg_graph_edges(self, direct_edges: Dict[TargetNode, List[TargetNode]],
+  #     reverse_edges: Dict[TargetNode, List[TargetNode]]) -> None:
+  #   for the_node, direct_nodes in direct_edges:
