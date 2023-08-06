@@ -223,7 +223,7 @@ class GraphPrinter:
   def print_dag(self, root: TargetNode, inbound: bool) -> str:
     dag_builder = DagNodesBuilder()
     dot_root, dot_nodes, dot_edges = self._print_dot_nodes_and_edges(
-        dag_builder.print_target_graph(root, inbound), inbound)
+        dag_builder.build_target_dag(root, inbound), inbound)
     return self._print_dot_graph(dot_root, dot_nodes, dot_edges,
                                  "Inbound" if inbound else "Outbound")
 

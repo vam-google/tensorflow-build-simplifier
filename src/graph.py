@@ -55,7 +55,7 @@ class NodesTreeBuilder:
 
 
 class DagNodesBuilder:
-  def print_target_graph(self, root: TargetNode, sort_by_indegree: bool) -> List[
+  def build_target_dag(self, root: TargetNode, sort_by_indegree: bool) -> List[
       Tuple[TargetNode, List[TargetNode], Set[TargetNode]]]:
     inbound_edges: Dict[TargetNode, List[TargetNode]] = {}
     outbound_edges: Dict[TargetNode, List[TargetNode]] = {}
