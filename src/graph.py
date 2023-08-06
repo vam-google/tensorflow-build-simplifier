@@ -56,15 +56,15 @@ class NodesTreeBuilder:
 
 class DagBuilder:
   def __init__(self, root: TargetNode):
-    self._inbound_edges: Dict[TargetNode, List[TargetNode]] = {}
-    self._outbound_edges: Dict[TargetNode, List[TargetNode]] = {}
+    self._inbound_edges: Dict[TargetNode, Set[TargetNode]] = {}
+    self._outbound_edges: Dict[TargetNode, Set[TargetNode]] = {}
     path: Dict[str, TargetNode] = {}
-    self._dfs_graph_internal(root, self._outbound_edges, self._inbound_edges, path)
-
+    self._dfs_graph_internal(root, self._outbound_edges, self._inbound_edges,
+                             path)
 
   def build_target_dag(self, sort_by_indegree: bool) -> List[
-    Tuple[TargetNode, List[TargetNode], Set[TargetNode]]]:
-
+    Tuple[TargetNode, Set[TargetNode], Set[TargetNode]]]:
+    nodes_by_degree: List[Tuple[TargetNode, Set[TargetNode], Set[TargetNode]]]
     if sort_by_indegree:
       nodes_by_degree = self._sorted_nodes_by_edge_degree(self._inbound_edges,
                                                           self._outbound_edges)
@@ -73,20 +73,12 @@ class DagBuilder:
                                                           self._inbound_edges)
     return nodes_by_degree
 
-  # def build_package_graph(self, root: TargetNode):
-  #   inbound_edges: Dict[TargetNode, List[TargetNode]]
-  #   outbound_edges: Dict[TargetNode, List[TargetNode]]
-  #   inbound_edges, outbound_edges = self._dfs_graph(root)
-  #
-  #   TargetNode
-
-
   def _sorted_nodes_by_edge_degree(self,
-      direct_edges: Dict[TargetNode, List[TargetNode]],
-      reverse_edges: Dict[TargetNode, List[TargetNode]]) -> List[
-    Tuple[TargetNode, List[TargetNode], Set[TargetNode]]]:
+      direct_edges: Dict[TargetNode, Set[TargetNode]],
+      reverse_edges: Dict[TargetNode, Set[TargetNode]]) -> List[
+    Tuple[TargetNode, Set[TargetNode], Set[TargetNode]]]:
     nodes_and_edges: List[
-      Tuple[TargetNode, List[TargetNode], Set[TargetNode]]] = []
+      Tuple[TargetNode, Set[TargetNode], Set[TargetNode]]] = []
     for the_node, direct_nodes in direct_edges.items():
       nodes_and_edges.append(
           (the_node, direct_nodes, set(reverse_edges[the_node])))
@@ -94,10 +86,9 @@ class DagBuilder:
 
     return nodes_and_edges
 
-
   def _dfs_graph_internal(self, from_target: TargetNode,
-      visited: Dict[TargetNode, List[TargetNode]],
-      reverse_visited: Dict[TargetNode, List[TargetNode]],
+      visited: Dict[TargetNode, Set[TargetNode]],
+      reverse_visited: Dict[TargetNode, Set[TargetNode]],
       path: Dict[str, TargetNode]) -> None:
     from_label: str = str(from_target)
     if from_label in path:
@@ -108,17 +99,65 @@ class DagBuilder:
       return
 
     path[from_label] = from_target
-    visited.setdefault(from_target, [])
+    visited.setdefault(from_target, set())
     # to make sure that root also get to reverse_visited
-    reverse_visited.setdefault(from_target, [])
+    reverse_visited.setdefault(from_target, set())
 
     for to_target in from_target.get_targets():
       if not to_target.is_external() and not isinstance(to_target, FileNode):
-        visited[from_target].append(to_target)
-        reverse_visited.setdefault(to_target, []).append(from_target)
+        visited[from_target].add(to_target)
+        reverse_visited.setdefault(to_target, set()).add(from_target)
         self._dfs_graph_internal(to_target, visited, reverse_visited, path)
     del path[from_label]
 
-  # def _construct_pkg_graph_edges(self, direct_edges: Dict[TargetNode, List[TargetNode]],
-  #     reverse_edges: Dict[TargetNode, List[TargetNode]]) -> None:
-  #   for the_node, direct_nodes in direct_edges:
+
+class DgPkgBuilder(DagBuilder):
+  def __init__(self, root: TargetNode,
+      tree_nodes: Dict[str, ContainerNode]) -> None:
+    super().__init__(root)
+    self._inbound_pkg_edges: Dict[
+      PackageNode, Set[PackageNode]] = self._build_package_edges(
+      self._inbound_edges, tree_nodes)
+    self._outbound_pkg_edges: Dict[
+      PackageNode, Set[PackageNode]] = self._build_package_edges(
+      self._outbound_edges, tree_nodes)
+
+  def build_package_dg(self, sort_by_indegree: bool) -> List[
+    Tuple[PackageNode, Set[PackageNode], Set[PackageNode]]]:
+    pkgs_by_degree: List[Tuple[PackageNode, Set[PackageNode], Set[PackageNode]]]
+    if sort_by_indegree:
+      pkgs_by_degree = self._sorted_pkgs_by_edge_degree(self._inbound_pkg_edges,
+                                                        self._outbound_pkg_edges)
+    else:
+      pkgs_by_degree = self._sorted_pkgs_by_edge_degree(
+        self._outbound_pkg_edges,
+        self._inbound_pkg_edges)
+    return pkgs_by_degree
+
+  def _sorted_pkgs_by_edge_degree(self,
+      direct_edges: Dict[PackageNode, Set[PackageNode]],
+      reverse_edges: Dict[PackageNode, Set[PackageNode]]):
+    pkgs_and_edges: List[
+      Tuple[PackageNode, Set[PackageNode], Set[PackageNode]]] = []
+    for the_node, direct_nodes in direct_edges.items():
+      pkgs_and_edges.append(
+          (the_node, direct_nodes, set(reverse_edges[the_node])))
+    pkgs_and_edges.sort(key=lambda x: -((len(x[1]) << 15) | len(x[2])))
+
+    return pkgs_and_edges
+
+  def _build_package_edges(self,
+      direct_edges: Dict[TargetNode, Set[TargetNode]],
+      tree_nodes: Dict[str, ContainerNode]) -> Dict[
+    PackageNode, Set[PackageNode]]:
+    pkg_edges: Dict[PackageNode, Set[PackageNode]] = {}
+    for the_node, edge in direct_edges.items():
+      the_pkg: PackageNode = cast(PackageNode,
+                                  tree_nodes[str(the_node.get_parent_label())])
+      cur_pkg_edges = pkg_edges.setdefault(the_pkg, set())
+      for direct_node in edge:
+        direct_pkg: PackageNode = cast(PackageNode, tree_nodes[
+          direct_node.get_parent_label()])
+        cur_pkg_edges.add(direct_pkg)
+
+    return pkg_edges

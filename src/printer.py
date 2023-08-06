@@ -1,8 +1,8 @@
-from typing import Union, Dict, List, Sequence, Set, Tuple, Iterable, cast
+from typing import Union, Dict, List, Collection, Set, Tuple, Iterable, cast
 from node import Function, Node, ContainerNode, TargetNode, FileNode, \
   RepositoryNode, PackageNode
 from rule import TensorflowRules
-from graph import DagBuilder
+from graph import DgPkgBuilder
 
 
 class DebugTreePrinter:
@@ -220,21 +220,29 @@ class BuildFilesPrinter(BuildTargetsPrinter):
 
 
 class GraphPrinter:
-  def __init__(self, dag_builder: DagBuilder) -> None:
-    self._dag_builder = dag_builder
+  def __init__(self, dg_builder: DgPkgBuilder) -> None:
+    self.dg_builder = dg_builder
 
-  def print_dag(self, inbound: bool) -> str:
+  def print_target_dag(self, inbound: bool) -> str:
     dot_root, dot_nodes, dot_edges = self._print_dot_nodes_and_edges(
-        self._dag_builder.build_target_dag(inbound), inbound)
+        cast(List[Tuple[Node, Set[Node], Set[Node]]],
+             self.dg_builder.build_target_dag(inbound)), inbound)
     return self._print_dot_graph(dot_root, dot_nodes, dot_edges,
-                                 "Inbound" if inbound else "Outbound")
+                                 "InboundTargets" if inbound else "OutboundTargets")
+
+  def print_package_dg(self, inbound: bool) -> str:
+    dot_root, dot_nodes, dot_edges = self._print_dot_nodes_and_edges(
+        cast(List[Tuple[Node, Set[Node], Set[Node]]],
+             self.dg_builder.build_package_dg(inbound)), inbound)
+    return self._print_dot_graph(dot_root, dot_nodes, dot_edges,
+                                 "InboundPackages" if inbound else "OutboundPackages")
 
   def _print_dot_graph(self, root_node: str, dot_nodes: List[str],
       dot_edges: List[str], graph_name: str) -> str:
     nodes_str = "  \n".join(dot_nodes)
     edges_str = "  \n".join(dot_edges)
 
-    return f"""digraph {graph_name}Targets {{
+    return f"""digraph {graph_name} {{
 edge [arrowhead="none",color="red;0.2:grey80:green;0.2"];
 node [fillcolor="white",shape="plain",style="filled",height="0.02",fontsize="8",fontname="Arial"];
 graph [ranksep="13.0",rankdir="LR",outputorder="edgesfirst",root="{root_node}"];
@@ -244,19 +252,31 @@ graph [ranksep="13.0",rankdir="LR",outputorder="edgesfirst",root="{root_node}"];
 
   def _print_dot_nodes_and_edges(self,
       nodes_and_edges: List[
-        Tuple[TargetNode, List[TargetNode], Set[TargetNode]]], inbound: bool) -> \
-      Tuple[str, List[str], List[str]]:
+        Tuple[Node, Set[Node], Set[Node]]], inbound: bool) -> Tuple[
+    str, List[str], List[str]]:
 
     root_node: str = str(nodes_and_edges[0][0])
     dot_nodes: List[str] = []
     dot_edges: List[str] = []
     node_no: int = 1
+
+    undirected_edges: Set[str] = set()
+
     for the_node, direct_nodes, reverse_nodes in nodes_and_edges:
       dot_nodes.append(
           f'"{the_node}" [label="{node_no}:{len(direct_nodes)}:{len(reverse_nodes)}"];')
       node_no += 1
       for direct_node in direct_nodes:
-        if inbound:
+        if direct_node == the_node:
+          continue
+        if direct_node in reverse_nodes:
+          undirected_edge = f'"{the_node}" -> "{direct_node}";'
+          if undirected_edge in undirected_edges:
+            continue
+          undirected_edges.add(f'"{direct_node}" -> "{the_node}";')
+          dot_edges.append(
+            f'"{direct_node}" -> "{the_node}" [dir="none",color="blue;0.2:grey80:blue;0.2"];')
+        elif inbound:
           dot_edges.append(f'"{direct_node}" -> "{the_node}";')
         else:
           dot_edges.append(f'"{the_node}" -> "{direct_node}";')
