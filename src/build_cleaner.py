@@ -5,7 +5,8 @@ import time
 from typing import Dict, Optional, List, cast
 
 from runner import BazelRunner, TargetsCollector, CollectedTargets
-from transformer import NodesGraphBuilder, PackageTargetsTransformer
+from transformer import PackageTargetsTransformer
+from graph import NodesTreeBuilder
 from parser import BazelBuildTargetsParser
 from printer import BuildFilesPrinter, GraphPrinter, DebugTreePrinter
 from fileio import BuildFilesWriter, GraphvizWriter
@@ -17,7 +18,7 @@ class BuildCleanerCli:
     self._root_target: str
     self._prefix_path: str = os.getcwd()
     self._bazel_config: str
-    self._output_build_path: str
+    self._output_build_path: str = ""
     self._debug_package_graph_path: str = ""
     self._debug_target_graph_path: str = ""
     self._build_file_name: str = "BUILD"
@@ -65,7 +66,7 @@ class BuildCleanerCli:
           f"Incremental Lengths: {targets.incremental_lengths}")
 
     # Build targets tree and apply necessary transformations
-    tree_builder: NodesGraphBuilder = NodesGraphBuilder()
+    tree_builder: NodesTreeBuilder = NodesTreeBuilder()
     tree_nodes: Dict[str, ContainerNode] = tree_builder.build_package_tree(
         targets.all_nodes.values())
 
@@ -105,7 +106,8 @@ class BuildCleanerCli:
 
   def _print_target_graph(self, root: TargetNode, graph_path: str) -> None:
     graph_printer: GraphPrinter = GraphPrinter()
-    inbound_graph, outbound_graph = graph_printer.print_target_graph(root)
+    inbound_graph = graph_printer.print_dag(root, True)
+    outbound_graph = graph_printer.print_dag(root, False)
     inbound_path_dot: str = f"{graph_path}.inbound.dot"
     inbound_path_svg: str = f"{graph_path}.inbound.svg"
     outbound_path_dot: str = f"{graph_path}.outbound.dot"

@@ -5,56 +5,6 @@ from rule import Rule, TensorflowRules, PackageFunctions
 import re
 
 
-class NodesGraphBuilder:
-  def __init__(self) -> None:
-    self._label_splitter_regex: Pattern = re.compile(
-        r"(?P<external>@?)(?P<repo>\w*)//(?P<package>[0-9a-zA-Z\-\._\@/]+)*:(?P<name>[0-9a-zA-Z\-\._\+/]+)$")
-
-  def get_label_components(self, label: str) -> Tuple[bool, str, str, str]:
-    match = self._label_splitter_regex.search(label)
-    if not match:
-      raise ValueError(f"{label} is not a valid label")
-    return match.group("external") == "@", match.group("repo"), match.group(
-        "package"), match.group("name")
-
-  def build_package_tree(self, target_nodes_list: Iterable[Node]) -> Dict[
-    str, ContainerNode]:
-    external_root = RootNode("@")
-    internal_root = RootNode("")
-    all_containers: Dict[str, ContainerNode] = {
-        external_root.label: external_root,
-        internal_root.label: internal_root
-    }
-    for node in target_nodes_list:
-      external, repo, pkg, name = self.get_label_components(node.label)
-      root_node = external_root if external else internal_root
-      repo_node: RepositoryNode = RepositoryNode(repo, root_node.label)
-      if str(repo_node) not in all_containers:
-        root_node.children[str(repo_node)] = repo_node
-        all_containers[str(repo_node)] = repo_node
-      else:
-        repo_node = cast(RepositoryNode, all_containers[str(repo_node)])
-
-      folders = pkg.split("/")
-      container_node: ContainerNode = repo_node
-      all_containers[str(container_node)] = container_node
-      package_depth: int = 2
-      for folder in folders:
-        next_package_node: PackageNode = PackageNode(folder,
-                                                     str(container_node),
-                                                     package_depth)
-        next_package_node = cast(PackageNode,
-                                 all_containers.setdefault(
-                                     str(next_package_node),
-                                     next_package_node))
-        package_depth += 1
-        container_node.children[str(next_package_node)] = next_package_node
-        container_node = next_package_node
-      container_node.children[str(node)] = node
-
-    return all_containers
-
-
 class PackageTargetsTransformer:
   def __init__(self) -> None:
     self._cc_header_only_library = TensorflowRules.rules()[

@@ -3,7 +3,6 @@ from typing import Pattern, Match
 
 from node import Node, TargetNode, FileNode
 from rule import Rule, TensorflowRules
-from transformer import NodesGraphBuilder
 
 import re
 
@@ -37,8 +36,6 @@ class BazelBuildTargetsParser:
     for rule in TensorflowRules.ignored_rules().values():
       self._init_args_parsers(rule)
       self._ignored_rule_parsers.append(self._rule_parser(rule))
-
-    self._nodes_builder = NodesGraphBuilder()
 
   def _init_args_parsers(self, rule):
     for arg in rule.label_list_args:

@@ -2,6 +2,7 @@ from typing import Union, Dict, List, Sequence, Set, Tuple, Iterable, cast
 from node import Function, Node, ContainerNode, TargetNode, FileNode, \
   RepositoryNode, PackageNode
 from rule import TensorflowRules
+from graph import DagNodesBuilder
 
 
 class DebugTreePrinter:
@@ -219,25 +220,12 @@ class BuildFilesPrinter(BuildTargetsPrinter):
 
 
 class GraphPrinter:
-  def print_target_graph(self, root: TargetNode) -> Tuple[str, str]:
-    inbound_edges: Dict[TargetNode, List[TargetNode]] = {}
-    outbound_edges: Dict[TargetNode, List[TargetNode]] = {}
-    path: Dict[str, TargetNode] = {}
-    self._dfs_graph(root, outbound_edges, inbound_edges, path)
-    inbound_nodes_and_edges = self._sorted_nodes_by_edge_degree(inbound_edges,
-                                                                outbound_edges)
-    outbound_nodes_and_edges = self._sorted_nodes_by_edge_degree(outbound_edges,
-                                                                 inbound_edges)
-
-    in_root, in_dot_nodes, in_dot_edges = self._print_dot_nodes_and_edges(
-        inbound_nodes_and_edges, True)
-    out_root, out_dot_nodes, out_dot_edges = self._print_dot_nodes_and_edges(
-        outbound_nodes_and_edges, False)
-
-    return (
-        self._print_dot_graph(in_root, in_dot_nodes, in_dot_edges, "Inbound"),
-        self._print_dot_graph(out_root, out_dot_nodes, out_dot_edges,
-                              "Outbound"))
+  def print_dag(self, root: TargetNode, inbound: bool) -> str:
+    dag_builder = DagNodesBuilder()
+    dot_root, dot_nodes, dot_edges = self._print_dot_nodes_and_edges(
+        dag_builder.print_target_graph(root, inbound), inbound)
+    return self._print_dot_graph(dot_root, dot_nodes, dot_edges,
+                                 "Inbound" if inbound else "Outbound")
 
   def _print_dot_graph(self, root_node: str, dot_nodes: List[str],
       dot_edges: List[str], graph_name: str) -> str:
@@ -272,44 +260,3 @@ graph [ranksep="13.0",rankdir="LR",outputorder="edgesfirst",root="{root_node}"];
           dot_edges.append(f'"{the_node}" -> "{direct_node}";')
 
     return root_node, dot_nodes, dot_edges
-
-  def _sorted_nodes_by_edge_degree(self,
-      direct_edges: Dict[TargetNode, List[TargetNode]],
-      reverse_edges: Dict[TargetNode, List[TargetNode]]) -> List[
-    Tuple[TargetNode, List[TargetNode], Set[TargetNode]]]:
-    nodes_and_edges: List[
-      Tuple[TargetNode, List[TargetNode], Set[TargetNode]]] = []
-    for the_node, direct_nodes in direct_edges.items():
-      nodes_and_edges.append(
-          (the_node, direct_nodes, set(reverse_edges[the_node])))
-    nodes_and_edges.sort(key=lambda x: -((len(x[1]) << 15) | len(x[2])))
-
-    return nodes_and_edges
-
-  def _dfs_graph(self, from_target: TargetNode,
-      visited: Dict[TargetNode, List[TargetNode]],
-      reverse_visited: Dict[TargetNode, List[TargetNode]],
-      path: Dict[str, TargetNode]) -> None:
-    from_label: str = str(from_target)
-    if from_label in path:
-      cycle_path = " -> ".join(path) + " -> " + from_label
-      raise ValueError(f"Cycle found: {cycle_path}")
-
-    if from_target in visited:
-      return
-
-    path[from_label] = from_target
-    visited.setdefault(from_target, [])
-    # to make sure that root also get to reverse_visited
-    reverse_visited.setdefault(from_target, [])
-
-    for to_target in from_target.get_targets():
-      if not to_target.is_external() and not isinstance(to_target, FileNode):
-        visited[from_target].append(to_target)
-        reverse_visited.setdefault(to_target, []).append(from_target)
-        self._dfs_graph(to_target, visited, reverse_visited, path)
-    del path[from_label]
-
-  # def _construct_pkg_graph_edges(self, direct_edges: Dict[TargetNode, List[TargetNode]],
-  #     reverse_edges: Dict[TargetNode, List[TargetNode]]) -> None:
-  #   for the_node, direct_nodes in direct_edges:
