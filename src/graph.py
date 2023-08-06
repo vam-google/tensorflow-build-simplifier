@@ -3,6 +3,7 @@ from node import Node, ContainerNode, TargetNode, RootNode, RepositoryNode, \
   PackageNode, FileNode
 import re
 
+
 class NodesTreeBuilder:
   def __init__(self) -> None:
     self._label_splitter_regex: Pattern = re.compile(
@@ -53,22 +54,32 @@ class NodesTreeBuilder:
     return all_containers
 
 
-
-class DagNodesBuilder:
-  def build_target_dag(self, root: TargetNode, sort_by_indegree: bool) -> List[
-      Tuple[TargetNode, List[TargetNode], Set[TargetNode]]]:
-    inbound_edges: Dict[TargetNode, List[TargetNode]] = {}
-    outbound_edges: Dict[TargetNode, List[TargetNode]] = {}
+class DagBuilder:
+  def __init__(self, root: TargetNode):
+    self._inbound_edges: Dict[TargetNode, List[TargetNode]] = {}
+    self._outbound_edges: Dict[TargetNode, List[TargetNode]] = {}
     path: Dict[str, TargetNode] = {}
-    self._dfs_graph(root, outbound_edges, inbound_edges, path)
+    self._dfs_graph_internal(root, self._outbound_edges, self._inbound_edges, path)
+
+
+  def build_target_dag(self, sort_by_indegree: bool) -> List[
+    Tuple[TargetNode, List[TargetNode], Set[TargetNode]]]:
 
     if sort_by_indegree:
-      nodes_by_degree = self._sorted_nodes_by_edge_degree(inbound_edges,
-                                                          outbound_edges)
+      nodes_by_degree = self._sorted_nodes_by_edge_degree(self._inbound_edges,
+                                                          self._outbound_edges)
     else:
-      nodes_by_degree = self._sorted_nodes_by_edge_degree(outbound_edges,
-                                                          inbound_edges)
+      nodes_by_degree = self._sorted_nodes_by_edge_degree(self._outbound_edges,
+                                                          self._inbound_edges)
     return nodes_by_degree
+
+  # def build_package_graph(self, root: TargetNode):
+  #   inbound_edges: Dict[TargetNode, List[TargetNode]]
+  #   outbound_edges: Dict[TargetNode, List[TargetNode]]
+  #   inbound_edges, outbound_edges = self._dfs_graph(root)
+  #
+  #   TargetNode
+
 
   def _sorted_nodes_by_edge_degree(self,
       direct_edges: Dict[TargetNode, List[TargetNode]],
@@ -83,7 +94,8 @@ class DagNodesBuilder:
 
     return nodes_and_edges
 
-  def _dfs_graph(self, from_target: TargetNode,
+
+  def _dfs_graph_internal(self, from_target: TargetNode,
       visited: Dict[TargetNode, List[TargetNode]],
       reverse_visited: Dict[TargetNode, List[TargetNode]],
       path: Dict[str, TargetNode]) -> None:
@@ -104,7 +116,7 @@ class DagNodesBuilder:
       if not to_target.is_external() and not isinstance(to_target, FileNode):
         visited[from_target].append(to_target)
         reverse_visited.setdefault(to_target, []).append(from_target)
-        self._dfs_graph(to_target, visited, reverse_visited, path)
+        self._dfs_graph_internal(to_target, visited, reverse_visited, path)
     del path[from_label]
 
   # def _construct_pkg_graph_edges(self, direct_edges: Dict[TargetNode, List[TargetNode]],

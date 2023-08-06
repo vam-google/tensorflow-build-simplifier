@@ -2,7 +2,7 @@ from typing import Union, Dict, List, Sequence, Set, Tuple, Iterable, cast
 from node import Function, Node, ContainerNode, TargetNode, FileNode, \
   RepositoryNode, PackageNode
 from rule import TensorflowRules
-from graph import DagNodesBuilder
+from graph import DagBuilder
 
 
 class DebugTreePrinter:
@@ -220,10 +220,12 @@ class BuildFilesPrinter(BuildTargetsPrinter):
 
 
 class GraphPrinter:
-  def print_dag(self, root: TargetNode, inbound: bool) -> str:
-    dag_builder = DagNodesBuilder()
+  def __init__(self, dag_builder: DagBuilder) -> None:
+    self._dag_builder = dag_builder
+
+  def print_dag(self, inbound: bool) -> str:
     dot_root, dot_nodes, dot_edges = self._print_dot_nodes_and_edges(
-        dag_builder.build_target_dag(root, inbound), inbound)
+        self._dag_builder.build_target_dag(inbound), inbound)
     return self._print_dot_graph(dot_root, dot_nodes, dot_edges,
                                  "Inbound" if inbound else "Outbound")
 

@@ -6,12 +6,11 @@ from typing import Dict, Optional, List, cast
 
 from runner import BazelRunner, TargetsCollector, CollectedTargets
 from transformer import PackageTargetsTransformer
-from graph import NodesTreeBuilder
+from graph import NodesTreeBuilder, DagBuilder
 from parser import BazelBuildTargetsParser
 from printer import BuildFilesPrinter, GraphPrinter, DebugTreePrinter
 from fileio import BuildFilesWriter, GraphvizWriter
 from node import TargetNode, Node, ContainerNode, RepositoryNode
-
 
 class BuildCleanerCli:
   def __init__(self, cli_args: List[str]):
@@ -77,12 +76,16 @@ class BuildCleanerCli:
     targets_transformer.populate_export_files(tf_root)
 
     tf_repo: RepositoryNode = cast(RepositoryNode, tree_nodes["//"])
+    input_target:TargetNode = targets.all_nodes[self._root_target]
+    dag_builder: DagBuilder = DagBuilder(input_target)
+
+
     if self._output_build_path:
       self._generate_build_files(tf_repo, self._output_build_path,
                                  self._build_file_name)
 
     if self._debug_target_graph_path:
-      self._print_target_graph(targets.all_nodes[self._root_target],
+      self._print_target_graph(dag_builder,
                                self._debug_target_graph_path)
     # if self._debug_package_graph_path:
     #   self._print_package_graph(tf_repo, self._debug_package_graph_path)
@@ -104,10 +107,10 @@ class BuildCleanerCli:
                                                             build_file_name)
     build_files_writer.write(build_files)
 
-  def _print_target_graph(self, root: TargetNode, graph_path: str) -> None:
-    graph_printer: GraphPrinter = GraphPrinter()
-    inbound_graph = graph_printer.print_dag(root, True)
-    outbound_graph = graph_printer.print_dag(root, False)
+  def _print_target_graph(self, dag_builder: DagBuilder, graph_path: str) -> None:
+    graph_printer: GraphPrinter = GraphPrinter(dag_builder)
+    inbound_graph = graph_printer.print_dag(True)
+    outbound_graph = graph_printer.print_dag(False)
     inbound_path_dot: str = f"{graph_path}.inbound.dot"
     inbound_path_svg: str = f"{graph_path}.inbound.svg"
     outbound_path_dot: str = f"{graph_path}.outbound.dot"
