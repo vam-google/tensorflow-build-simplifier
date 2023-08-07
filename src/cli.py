@@ -2,15 +2,14 @@ import sys
 import os
 import time
 
-from typing import Dict, Optional, List, cast
+from typing import Dict, Optional, List
 
-from runner import BazelRunner, TargetsCollector, CollectedTargets
-from transformer import PackageTargetsTransformer
-from graph import NodesTreeBuilder, DgPkgBuilder, DagBuilder
-from parser import BazelBuildTargetsParser
+from graph import DgPkgBuilder
 from printer import BuildFilesPrinter, GraphPrinter, DebugTreePrinter
 from fileio import BuildFilesWriter, GraphvizWriter
 from node import TargetNode, Node, ContainerNode, RepositoryNode
+from build import Build
+
 
 class BuildCleanerCli:
   def __init__(self, cli_args: List[str]):
@@ -51,49 +50,26 @@ class BuildCleanerCli:
   def main(self) -> None:
     start: float = time.time()
 
-    bazel_runner: BazelRunner = BazelRunner()
-    bazel_query_parser: BazelBuildTargetsParser = BazelBuildTargetsParser(
-        self._prefix_path)
-    targets_collector: TargetsCollector = TargetsCollector(bazel_runner,
-                                                           bazel_query_parser)
+    build: Build = Build(self._root_target, self._bazel_config,
+                         self._prefix_path)
 
-    targets: CollectedTargets = targets_collector.collect_dependencies(
-        self._root_target, self._bazel_config)
-    print(f"Targets: {len(targets.all_targets)}\n"
-          f"Nodes: {len(targets.all_nodes)}\n"
-          f"Iterations: {targets.iterations}\n"
-          f"Incremental Lengths: {targets.incremental_lengths}")
-
-    # Build targets tree and apply necessary transformations
-    tree_builder: NodesTreeBuilder = NodesTreeBuilder()
-    tree_nodes: Dict[str, ContainerNode] = tree_builder.build_package_tree(
-        targets.all_nodes.values())
-
-    targets_transformer: PackageTargetsTransformer = PackageTargetsTransformer()
-    tf_root: RepositoryNode = cast(RepositoryNode, tree_nodes["//"])
-    targets_transformer.merge_cc_header_only_library(tf_root)
-    targets_transformer.fix_generate_cc_kind(tf_root)
-    targets_transformer.populate_export_files(tf_root)
-
-    tf_repo: RepositoryNode = cast(RepositoryNode, tree_nodes["//"])
-    input_target:TargetNode = targets.all_nodes[self._root_target]
-    dag_builder: DgPkgBuilder = DgPkgBuilder(input_target, tree_nodes)
+    dag_builder: DgPkgBuilder = DgPkgBuilder(build.input_target,
+                                             build.package_nodes)
 
     if self._output_build_path:
-      self._generate_build_files(tf_repo, self._output_build_path,
+      self._generate_build_files(build.repo_root, self._output_build_path,
                                  self._build_file_name)
 
     if self._debug_build:
-      self._print_debug_info(tf_root, None, None)
+      self._print_debug_info(build.repo_root, None, None)
     if self._debug_tree:
-      self._print_debug_info(None, None, tree_nodes)
+      self._print_debug_info(None, None, build.package_nodes)
     if self._debug_nodes_by_kind:
-      self._print_debug_info(None, targets.nodes_by_kind, None)
+      self._print_debug_info(None, build.targets_by_kind, None)
     if self._debug_target_graph_path:
       self._print_target_graph(dag_builder, self._debug_target_graph_path)
     if self._debug_package_graph_path:
       self._print_package_graph(dag_builder, self._debug_package_graph_path)
-
 
     end: float = time.time()
     print(f"Total Time: {end - start}")
@@ -106,7 +82,8 @@ class BuildCleanerCli:
                                                             build_file_name)
     build_files_writer.write(build_files)
 
-  def _print_target_graph(self, dag_builder: DgPkgBuilder, graph_path: str) -> None:
+  def _print_target_graph(self, dag_builder: DgPkgBuilder,
+      graph_path: str) -> None:
     graph_printer: GraphPrinter = GraphPrinter(dag_builder)
     inbound_graph = graph_printer.print_target_dag(True)
     outbound_graph = graph_printer.print_target_dag(False)
@@ -128,7 +105,8 @@ class BuildCleanerCli:
     print(f"SVG Outbound: {outbound_path_svg}")
     print("^^^^^ DEBUG: Target graph path ^^^^^\n")
 
-  def _print_package_graph(self, dg_builder: DgPkgBuilder, graph_path: str) -> None:
+  def _print_package_graph(self, dg_builder: DgPkgBuilder,
+      graph_path: str) -> None:
     graph_printer: GraphPrinter = GraphPrinter(dg_builder)
     inbound_graph: str = graph_printer.print_package_dg(True)
     outbound_graph: str = graph_printer.print_package_dg(False)
@@ -151,26 +129,27 @@ class BuildCleanerCli:
     print(f"SVG Outbound: {outbound_path_svg}")
     print("^^^^^ DEBUG: Package graph path ^^^^^\n")
 
-  def _print_debug_info(self, tf_root: Optional[RepositoryNode],
-      nodes_by_kind: Optional[Dict[str, Dict[str, TargetNode]]],
-      tree_nodes: Optional[Dict[str, ContainerNode]]) -> None:
+  def _print_debug_info(self, repo_root: Optional[RepositoryNode],
+      targets_by_kind: Optional[Dict[str, Dict[str, TargetNode]]],
+      package_nodes: Optional[Dict[str, ContainerNode]]) -> None:
     targets_printer: BuildFilesPrinter = BuildFilesPrinter()
     tree_printer: DebugTreePrinter = DebugTreePrinter()
 
-    if tf_root:
+    if repo_root:
       print("vvvvv DEBUG: Build vvvvv")
-      files_dict: Dict[str, str] = targets_printer.print_build_files(tf_root)
+      files_dict: Dict[str, str] = targets_printer.print_build_files(repo_root)
       for file_path, file_body in files_dict.items():
         print()
         print(file_body)
       print("^^^^^ DEBUG: Build ^^^^^\n")
-    if nodes_by_kind:
+    if targets_by_kind:
       print("vvvvv DEBUG: Nodes by kind vvvvv")
-      print(tree_printer.print_nodes_by_kind(nodes_by_kind))
+      print(tree_printer.print_nodes_by_kind(targets_by_kind))
       print("^^^^^ DEBUG: Nodes by kind ^^^^^\n")
-    if tree_nodes:
+    if package_nodes:
       print("vvvvv DEBUG: Tree vvvvv")
-      print(tree_printer.print_nodes_tree(tree_nodes[""], return_string=True))
+      print(tree_printer.print_nodes_tree(package_nodes[""], return_string=True,
+                                          print_files=False))
       print("^^^^^ DEBUG: Tree ^^^^^\n")
 
 

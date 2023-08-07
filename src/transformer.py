@@ -1,23 +1,35 @@
-from typing import Pattern, List, Dict, Iterable, Tuple, Set, Optional, cast
-from node import Node, Function, ContainerNode, TargetNode, RootNode, \
-  RepositoryNode, PackageNode, FileNode
-from rule import Rule, TensorflowRules, PackageFunctions
-import re
+from typing import List, Dict, Set, Optional, cast
+from node import Node, Function, ContainerNode, TargetNode, PackageNode, \
+  FileNode
+from rule import TensorflowRules, PackageFunctions
 
 
-class PackageTargetsTransformer:
+class RuleTransformer:
+  def transform(self, node: Node) -> None:
+    pass
+
+class ChainTransformer(RuleTransformer):
+  def __init__(self, transformers_chain: List[RuleTransformer]) -> None:
+    self.transformers_chain: List[RuleTransformer] = list(transformers_chain)
+
+  def transform(self, node: Node) -> None:
+    for transformer in self.transformers_chain:
+      transformer.transform(node)
+
+class CcHeaderOnlyLibraryTransformer(RuleTransformer):
   def __init__(self) -> None:
     self._cc_header_only_library = TensorflowRules.rules()[
       "cc_header_only_library"]
-    self._generate_cc = TensorflowRules.rules()["generate_cc"]
-    self._private_generate_cc = TensorflowRules.rules()["_generate_cc"]
     self._transitive_hdrs = TensorflowRules.rules()["_transitive_hdrs"]
     self._transitive_parameters_library = TensorflowRules.rules()[
       "_transitive_parameters_library"]
 
-  def merge_cc_header_only_library(self, node: ContainerNode) -> None:
+  def transform(self, node: Node) -> None:
+    self._merge_cc_header_only_library(cast(ContainerNode, node))
+
+  def _merge_cc_header_only_library(self, node: ContainerNode) -> None:
     for child in node.get_containers():
-      self.merge_cc_header_only_library(child)
+      self._merge_cc_header_only_library(child)
 
     transitive_hdrs: List[TargetNode] = list(
         node.get_targets(self._transitive_hdrs))
@@ -52,10 +64,19 @@ class PackageTargetsTransformer:
       del node.children[str(cc_node)]
       node.children[str(new_node)] = new_node
 
-  def fix_generate_cc_kind(self, node: Node) -> None:
+
+class GenerateCcTransformer(RuleTransformer):
+  def __init__(self):
+    self._generate_cc = TensorflowRules.rules()["generate_cc"]
+    self._private_generate_cc = TensorflowRules.rules()["_generate_cc"]
+
+  def transform(self, node: Node) -> None:
+    self._fix_generate_cc_kind(node)
+
+  def _fix_generate_cc_kind(self, node: Node) -> None:
     if isinstance(node, ContainerNode):
       for child in cast(ContainerNode, node).children.values():
-        self.fix_generate_cc_kind(child)
+        self._fix_generate_cc_kind(child)
     else:
       if node.kind == self._private_generate_cc:
         target_node = cast(TargetNode, node)
@@ -69,7 +90,13 @@ class PackageTargetsTransformer:
         else:
           target_node.bool_args["well_known_protos"] = False
 
-  def populate_export_files(self, root: ContainerNode):
+
+
+class ExportFilesTransformer(RuleTransformer):
+  def transform(self, node: Node) -> None:
+    self._populate_export_files(cast(ContainerNode, node))
+
+  def _populate_export_files(self, root: ContainerNode):
     file_to_packages: Dict[str, Set[PackageNode]] = {}
     self._collect_files_referenced_from_other_pkgs(root, file_to_packages)
     self._populate_export_files_property(root, file_to_packages)
