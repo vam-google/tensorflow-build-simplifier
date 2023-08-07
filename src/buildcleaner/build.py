@@ -1,18 +1,18 @@
 from typing import Dict, cast
 
-from runner import BazelRunner, TargetsCollector, CollectedTargets
-from transformer import CcHeaderOnlyLibraryTransformer, GenerateCcTransformer, \
-  ExportFilesTransformer, ChainTransformer
-from graph import NodesTreeBuilder
-from parser import BazelBuildTargetsParser
-from node import TargetNode, ContainerNode, RepositoryNode
+from buildcleaner.runner import BazelRunner, TargetsCollector, CollectedTargets
+from buildcleaner.transformer import CcHeaderOnlyLibraryTransformer, \
+  GenerateCcTransformer, ExportFilesTransformer, ChainTransformer
+from buildcleaner.graph import NodesTreeBuilder
+from buildcleaner.parser import BazelBuildTargetsParser
+from buildcleaner.node import TargetNode, ContainerNode, RepositoryNode
 
 
 class Build:
   def __init__(self, root_target: str, bazel_config: str, prefix_path: str):
     bazel_runner: BazelRunner = BazelRunner()
     bazel_query_parser: BazelBuildTargetsParser = BazelBuildTargetsParser(
-      prefix_path)
+        prefix_path)
     targets_collector: TargetsCollector = TargetsCollector(bazel_runner,
                                                            bazel_query_parser)
 

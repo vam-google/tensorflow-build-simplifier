@@ -4,11 +4,12 @@ import time
 
 from typing import Dict, Optional, List
 
-from graph import DgPkgBuilder
-from printer import BuildFilesPrinter, GraphPrinter, DebugTreePrinter
-from fileio import BuildFilesWriter, GraphvizWriter
-from node import TargetNode, Node, ContainerNode, RepositoryNode
-from build import Build
+from buildcleaner.graph import DgPkgBuilder
+from buildcleaner.printer import BuildFilesPrinter, GraphPrinter, \
+  DebugTreePrinter
+from buildcleaner.fileio import BuildFilesWriter, GraphvizWriter
+from buildcleaner.node import TargetNode, ContainerNode, RepositoryNode
+from buildcleaner.build import Build
 
 
 class BuildCleanerCli:

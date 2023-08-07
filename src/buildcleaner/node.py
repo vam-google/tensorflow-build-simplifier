@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import Dict, Optional, List, Iterable, Generator, cast
+from typing import Dict, Optional, List, Iterable, cast
 
-from rule import Rule
+from buildcleaner.rule import Rule
 
 
 class Function:

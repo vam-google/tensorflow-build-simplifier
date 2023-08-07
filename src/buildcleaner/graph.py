@@ -1,7 +1,9 @@
-from typing import Pattern, List, Dict, Iterable, Tuple, Set, cast
-from node import Node, ContainerNode, TargetNode, RootNode, RepositoryNode, \
-  PackageNode, FileNode
 import re
+
+from typing import Pattern, List, Dict, Iterable, Tuple, Set, cast
+
+from buildcleaner.node import Node, ContainerNode, TargetNode, RootNode, \
+  RepositoryNode, PackageNode, FileNode
 
 
 class NodesTreeBuilder:

@@ -1,14 +1,14 @@
 from typing import Dict, List, Callable, Tuple, Set, Optional
 from typing import Pattern, Match
 
-from node import Node, TargetNode, FileNode
-from rule import Rule, TensorflowRules
+from buildcleaner.node import TargetNode, FileNode
+from buildcleaner.rule import Rule, TensorflowRules
 
 import re
 
 
 class BazelBuildTargetsParser:
-  def __init__(self, path_prefix) -> None:
+  def __init__(self, path_prefix: str) -> None:
     self._target_splitter_regex: Pattern = re.compile(r"(?:\r?\n){2,}")
     self._package_name_regex: Pattern = re.compile(
         fr"#\s*{path_prefix}/(?P<value>[0-9a-zA-Z\-\._\@/]+)/BUILD(.bazel)?:")

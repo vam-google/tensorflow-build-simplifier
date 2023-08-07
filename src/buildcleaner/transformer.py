@@ -1,7 +1,7 @@
 from typing import List, Dict, Set, Optional, cast
-from node import Node, Function, ContainerNode, TargetNode, PackageNode, \
-  FileNode
-from rule import TensorflowRules, PackageFunctions
+from buildcleaner.node import Node, Function, ContainerNode, TargetNode, \
+  PackageNode, FileNode
+from buildcleaner.rule import TensorflowRules, PackageFunctions
 
 
 class RuleTransformer:

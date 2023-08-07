@@ -1,8 +1,9 @@
-from typing import Union, Dict, List, Collection, Set, Tuple, Iterable, cast
-from node import Function, Node, ContainerNode, TargetNode, FileNode, \
-  RepositoryNode, PackageNode
-from rule import TensorflowRules
-from graph import DgPkgBuilder
+from typing import Union, Dict, List, Set, Tuple, cast
+
+from buildcleaner.node import Function, Node, ContainerNode, TargetNode, \
+  FileNode, RepositoryNode, PackageNode
+from buildcleaner.rule import TensorflowRules
+from buildcleaner.graph import DgPkgBuilder
 
 
 class DebugTreePrinter:
