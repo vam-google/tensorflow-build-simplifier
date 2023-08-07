@@ -122,7 +122,8 @@ class TargetsCollector:
 
     return res
 
-  def _resolve_references(self, res: CollectedTargets, nodes_by_kind: Dict[str, Dict[str, TargetNode]]) -> None:
+  def _resolve_references(self, res: CollectedTargets,
+      nodes_by_kind: Dict[str, Dict[str, TargetNode]]) -> None:
     new_all_nodes: Dict[str, TargetNode] = self.resolve_label_references(
         res.all_nodes, nodes_by_kind["source"])
     new_all_nodes.update(res.all_nodes)
@@ -135,7 +136,6 @@ class TargetsCollector:
       if nodes_of_a_kind:
         nodes_of_a_kind[str(node)] = node
 
-
   def resolve_label_references(self, nodes_dict: Dict[str, TargetNode],
       files_dict: Dict[str, TargetNode]) -> Dict[str, TargetNode]:
     new_nodes: Dict[str, TargetNode] = {}
@@ -147,7 +147,8 @@ class TargetsCollector:
       resolved_ref: TargetNode
 
       for label_list_arg_name in target_node.label_list_args:
-        refs: List[TargetNode] = target_node.label_list_args[label_list_arg_name]
+        refs: List[TargetNode] = target_node.label_list_args[
+          label_list_arg_name]
         target_node.label_list_args[label_list_arg_name] = []
         for ref in refs:
           resolved_ref = ref
@@ -170,6 +171,3 @@ class TargetsCollector:
         target_node.label_args[label_arg_name] = resolved_ref
 
     return new_nodes
-
-
-

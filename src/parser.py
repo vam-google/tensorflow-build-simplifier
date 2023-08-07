@@ -164,7 +164,8 @@ class BazelBuildTargetsParser:
           for arg_value in match.group("values").split(", "):
             arg_k_v: List[str] = arg_value.split(": ")
             node.str_str_map_args.setdefault(str_str_map_arg, dict())[
-              self._normalize_value(arg_k_v[0])] = self._normalize_value(arg_k_v[1])
+              self._normalize_value(arg_k_v[0])] = self._normalize_value(
+                arg_k_v[1])
 
       return node
 

@@ -8,6 +8,7 @@ class RuleTransformer:
   def transform(self, node: Node) -> None:
     pass
 
+
 class ChainTransformer(RuleTransformer):
   def __init__(self, transformers_chain: List[RuleTransformer]) -> None:
     self.transformers_chain: List[RuleTransformer] = list(transformers_chain)
@@ -15,6 +16,7 @@ class ChainTransformer(RuleTransformer):
   def transform(self, node: Node) -> None:
     for transformer in self.transformers_chain:
       transformer.transform(node)
+
 
 class CcHeaderOnlyLibraryTransformer(RuleTransformer):
   def __init__(self) -> None:
@@ -89,7 +91,6 @@ class GenerateCcTransformer(RuleTransformer):
           del target_node.bool_args["well_known_protos"]
         else:
           target_node.bool_args["well_known_protos"] = False
-
 
 
 class ExportFilesTransformer(RuleTransformer):

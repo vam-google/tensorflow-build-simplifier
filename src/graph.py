@@ -117,10 +117,10 @@ class DgPkgBuilder(DagBuilder):
     super().__init__(root)
     self._inbound_pkg_edges: Dict[
       PackageNode, Set[PackageNode]] = self._build_package_edges(
-      self._inbound_edges, tree_nodes)
+        self._inbound_edges, tree_nodes)
     self._outbound_pkg_edges: Dict[
       PackageNode, Set[PackageNode]] = self._build_package_edges(
-      self._outbound_edges, tree_nodes)
+        self._outbound_edges, tree_nodes)
 
   def build_package_dg(self, sort_by_indegree: bool) -> List[
     Tuple[PackageNode, Set[PackageNode], Set[PackageNode]]]:
@@ -130,8 +130,8 @@ class DgPkgBuilder(DagBuilder):
                                                         self._outbound_pkg_edges)
     else:
       pkgs_by_degree = self._sorted_pkgs_by_edge_degree(
-        self._outbound_pkg_edges,
-        self._inbound_pkg_edges)
+          self._outbound_pkg_edges,
+          self._inbound_pkg_edges)
     return pkgs_by_degree
 
   def _sorted_pkgs_by_edge_degree(self,

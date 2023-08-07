@@ -275,7 +275,7 @@ graph [ranksep="13.0",rankdir="LR",outputorder="edgesfirst",root="{root_node}"];
             continue
           undirected_edges.add(f'"{direct_node}" -> "{the_node}";')
           dot_edges.append(
-            f'"{direct_node}" -> "{the_node}" [dir="none",color="blue;0.2:grey80:blue;0.2"];')
+              f'"{direct_node}" -> "{the_node}" [dir="none",color="blue;0.2:grey80:blue;0.2"];')
         elif inbound:
           dot_edges.append(f'"{direct_node}" -> "{the_node}";')
         else:

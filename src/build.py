@@ -11,7 +11,8 @@ from node import TargetNode, ContainerNode, RepositoryNode
 class Build:
   def __init__(self, root_target: str, bazel_config: str, prefix_path: str):
     bazel_runner: BazelRunner = BazelRunner()
-    bazel_query_parser: BazelBuildTargetsParser = BazelBuildTargetsParser(prefix_path)
+    bazel_query_parser: BazelBuildTargetsParser = BazelBuildTargetsParser(
+      prefix_path)
     targets_collector: TargetsCollector = TargetsCollector(bazel_runner,
                                                            bazel_query_parser)
 
@@ -24,10 +25,13 @@ class Build:
 
     tree_builder: NodesTreeBuilder = NodesTreeBuilder()
 
-    self.package_nodes: Dict[str, ContainerNode] = tree_builder.build_package_tree(
+    self.package_nodes: Dict[
+      str, ContainerNode] = tree_builder.build_package_tree(
         targets.all_nodes.values())
-    self.targets_by_kind: Dict[str, Dict[str, TargetNode]] = targets.nodes_by_kind
-    self.repo_root: RepositoryNode = cast(RepositoryNode, self.package_nodes["//"])
+    self.targets_by_kind: Dict[
+      str, Dict[str, TargetNode]] = targets.nodes_by_kind
+    self.repo_root: RepositoryNode = cast(RepositoryNode,
+                                          self.package_nodes["//"])
     self.input_target: TargetNode = targets.all_nodes[root_target]
 
     chain_transformer: ChainTransformer = ChainTransformer([

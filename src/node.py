@@ -3,6 +3,7 @@ from typing import Dict, Optional, List, Iterable, Generator, cast
 
 from rule import Rule
 
+
 class Function:
   def __init__(self, kind: Rule) -> None:
     self.kind = kind
@@ -170,4 +171,3 @@ class FileNode(TargetNode):
 
   def __init__(self, name: str, parent_label: str) -> None:
     super().__init__(FileNode.source_file_kind, name, parent_label, None)
-

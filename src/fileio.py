@@ -28,7 +28,9 @@ class GraphvizWriter:
       graph_file.flush()
 
   def write_svg(self, graph: str, output_path: str) -> None:
-    proc: subprocess.Popen = subprocess.Popen(['twopi', "-Tsvg"], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    proc: subprocess.Popen = subprocess.Popen(['twopi', "-Tsvg"],
+                                              stdin=subprocess.PIPE,
+                                              stdout=subprocess.PIPE)
     stdout, stderr = proc.communicate(input=bytes(graph, "utf-8"))
 
     with open(output_path, "w") as graph_file:
