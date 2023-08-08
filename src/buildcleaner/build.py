@@ -1,20 +1,20 @@
 from typing import Dict, cast
 
-from buildcleaner.runner import BazelRunner, TargetsCollector, CollectedTargets
-from buildcleaner.transformer import CcHeaderOnlyLibraryTransformer, \
-  GenerateCcTransformer, ExportFilesTransformer, ChainTransformer
+from buildcleaner.runner import BazelRunner
+from buildcleaner.runner import TargetsCollector
+from buildcleaner.runner import CollectedTargets
 from buildcleaner.graph import NodesTreeBuilder
 from buildcleaner.parser import BazelBuildTargetsParser
 from buildcleaner.node import TargetNode, ContainerNode, RepositoryNode
+from buildcleaner.transformer import RuleTransformer
 
 
 class Build:
-  def __init__(self, root_target: str, bazel_config: str, prefix_path: str):
+  def __init__(self, root_target: str, bazel_config: str,
+      parser: BazelBuildTargetsParser, transformer: RuleTransformer):
     bazel_runner: BazelRunner = BazelRunner()
-    bazel_query_parser: BazelBuildTargetsParser = BazelBuildTargetsParser(
-        prefix_path)
     targets_collector: TargetsCollector = TargetsCollector(bazel_runner,
-                                                           bazel_query_parser)
+                                                           parser)
 
     targets: CollectedTargets = targets_collector.collect_dependencies(
         root_target, bazel_config)
@@ -34,9 +34,4 @@ class Build:
                                           self.package_nodes["//"])
     self.input_target: TargetNode = targets.all_nodes[root_target]
 
-    chain_transformer: ChainTransformer = ChainTransformer([
-        CcHeaderOnlyLibraryTransformer(),
-        GenerateCcTransformer(),
-        ExportFilesTransformer()
-    ])
-    chain_transformer.transform(self.repo_root)
+    transformer.transform(self.repo_root)

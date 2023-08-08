@@ -2,13 +2,16 @@ from typing import Dict, List, Callable, Tuple, Set, Optional
 from typing import Pattern, Match
 
 from buildcleaner.node import TargetNode, FileNode
-from buildcleaner.rule import Rule, TensorflowRules
+from buildcleaner.rule import Rule
 
 import re
 
 
 class BazelBuildTargetsParser:
-  def __init__(self, path_prefix: str) -> None:
+  def __init__(self, path_prefix: str, rules_to_parse: Dict[str, Rule],
+      rules_to_ignore: Dict[str, Rule]) -> None:
+    self._rules_to_parse: Dict[str, Rule] = rules_to_parse.copy()
+    self._rules_to_ignore: Dict[str, Rule] = rules_to_ignore.copy()
     self._target_splitter_regex: Pattern = re.compile(r"(?:\r?\n){2,}")
     self._package_name_regex: Pattern = re.compile(
         fr"#\s*{path_prefix}/(?P<value>[0-9a-zA-Z\-\._\@/]+)/BUILD(.bazel)?:")
@@ -29,11 +32,11 @@ class BazelBuildTargetsParser:
     self._ignored_rule_parsers: List[
       Tuple[Pattern, Callable[[str], Optional[TargetNode]]]] = []
 
-    for rule in TensorflowRules.rules().values():
+    for rule in rules_to_parse.values():
       self._init_args_parsers(rule)
       self._rule_parsers.append(self._rule_parser(rule))
 
-    for rule in TensorflowRules.ignored_rules().values():
+    for rule in rules_to_ignore.values():
       self._init_args_parsers(rule)
       self._ignored_rule_parsers.append(self._rule_parser(rule))
 
@@ -189,9 +192,9 @@ class BazelBuildTargetsParser:
       if rule_kind == "source":
         node = FileNode(match.group("name"), match.group("package"))
       else:
-        kind: Optional[Rule] = TensorflowRules.rules().get(rule_kind)
+        kind: Optional[Rule] = self._rules_to_parse.get(rule_kind)
         if not kind:
-          if rule_kind not in TensorflowRules.ignored_rules():
+          if rule_kind not in self._rules_to_ignore:
             raise ValueError(f"Unknown Rule: {target_rule}")
           continue
         node = TargetNode(kind, match.group("name"), match.group("package"))

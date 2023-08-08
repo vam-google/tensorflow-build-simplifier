@@ -1,19 +1,23 @@
-import sys
 import os
 import time
 
 from typing import Dict, Optional, List
+from abc import abstractmethod
 
 from buildcleaner.graph import DgPkgBuilder
-from buildcleaner.printer import BuildFilesPrinter, GraphPrinter, \
-  DebugTreePrinter
-from buildcleaner.fileio import BuildFilesWriter, GraphvizWriter
-from buildcleaner.node import TargetNode, ContainerNode, RepositoryNode
+from buildcleaner.printer import BuildFilesPrinter
+from buildcleaner.printer import GraphPrinter
+from buildcleaner.printer import DebugTreePrinter
+from buildcleaner.fileio import BuildFilesWriter
+from buildcleaner.fileio import GraphvizWriter
+from buildcleaner.node import TargetNode
+from buildcleaner.node import ContainerNode
+from buildcleaner.node import RepositoryNode
 from buildcleaner.build import Build
 
 
 class BuildCleanerCli:
-  def __init__(self, cli_args: List[str]):
+  def __init__(self, cli_args: List[str]) -> None:
     self._root_target: str
     self._prefix_path: str = os.getcwd()
     self._bazel_config: str
@@ -51,8 +55,8 @@ class BuildCleanerCli:
   def main(self) -> None:
     start: float = time.time()
 
-    build: Build = Build(self._root_target, self._bazel_config,
-                         self._prefix_path)
+    build: Build = self.generate_build(self._root_target, self._bazel_config,
+                                       self._prefix_path)
 
     dag_builder: DgPkgBuilder = DgPkgBuilder(build.input_target,
                                              build.package_nodes)
@@ -74,6 +78,11 @@ class BuildCleanerCli:
 
     end: float = time.time()
     print(f"Total Time: {end - start}")
+
+  @abstractmethod
+  def generate_build(self, root_target: str, bazel_config: str,
+      prefix_path: str) -> Build:
+    pass
 
   def _generate_build_files(self, repo: RepositoryNode,
       output_build_path: str, build_file_name: str) -> None:
@@ -153,7 +162,3 @@ class BuildCleanerCli:
                                           print_files=False))
       print("^^^^^ DEBUG: Tree ^^^^^\n")
 
-
-if __name__ == '__main__':
-  cli = BuildCleanerCli(sys.argv[1:])
-  cli.main()

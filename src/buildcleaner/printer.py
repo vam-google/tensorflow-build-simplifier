@@ -2,7 +2,6 @@ from typing import Union, Dict, List, Set, Tuple, cast
 
 from buildcleaner.node import Function, Node, ContainerNode, TargetNode, \
   FileNode, RepositoryNode, PackageNode
-from buildcleaner.rule import TensorflowRules
 from buildcleaner.graph import DgPkgBuilder
 
 
@@ -84,7 +83,7 @@ class BuildTargetsPrinter:
 
   def _print_target(self, pkg_node: PackageNode,
       node: TargetNode) -> List[str]:
-    if node.kind == TensorflowRules.rules()["bind"]:
+    if node.kind.kind == "bind":
       return []
 
     list_args_block: str = self._print_list_args(pkg_node.label,
