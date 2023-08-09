@@ -1,10 +1,7 @@
 from typing import Dict, List, Set, Iterable, cast
 
-# from parser import BazelBuildTargetsParser
-
-
 from buildcleaner.parser import BazelBuildTargetsParser
-from buildcleaner.node import TargetNode, PackageNode
+from buildcleaner.node import TargetNode
 
 import subprocess
 

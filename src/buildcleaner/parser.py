@@ -40,7 +40,7 @@ class BazelBuildTargetsParser:
       self._init_args_parsers(rule)
       self._ignored_rule_parsers.append(self._rule_parser(rule))
 
-  def _init_args_parsers(self, rule):
+  def _init_args_parsers(self, rule: Rule) -> None:
     for arg in rule.label_list_args:
       self._arg_label_list_regex[arg] = re.compile(
           fr"\b{arg}\b\s*=\s*\[(?P<values>.+)\][,\s]*\n")

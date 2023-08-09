@@ -1,18 +1,9 @@
-from typing import Dict
+from typing import Dict, Optional
 from buildcleaner.rule import Rule
 
 
 class TensorflowRules:
-  _rules: Dict[str, Rule] = {
-      "cc_library": Rule(kind="cc_library",
-                         label_list_args=["srcs", "hdrs", "deps",
-                                          "textual_hdrs"],
-                         string_list_args=["copts", "features", "tags",
-                                           "includes"],
-                         string_args=["strip_include_prefix"],
-                         bool_args=["linkstatic", "alwayslink"]),
-      "filegroup": Rule(kind="filegroup", label_list_args=["srcs"]),
-      "alias": Rule(kind="alias", label_args=["actual"]),
+  _RULES: Dict[str, Rule] = {
       "proto_gen": Rule(kind="proto_gen",
                         label_list_args=["srcs", "deps", "outs"],
                         label_args=["protoc"],
@@ -20,12 +11,6 @@ class TensorflowRules:
                         string_args=["plugin_language"],
                         bool_args=["gen_cc"],
                         import_statement="load(\"@com_google_protobuf//:protobuf.bzl\", \"proto_gen\")"),
-      "genrule": Rule(kind="genrule", label_list_args=["srcs", "tools", "outs"],
-                      string_args=["cmd"]),
-      "cc_binary": Rule(kind="cc_binary",
-                        label_list_args=["srcs", "deps"],
-                        string_list_args=["copts", "linkopts"]),
-      "bind": Rule(kind="bind", label_args=["actual"]),
       "gentbl_rule": Rule(kind="gentbl_rule",
                           label_list_args=["deps", "td_srcs"],
                           label_args=["tblgen", "td_file", "out"],
@@ -46,26 +31,10 @@ class TensorflowRules:
                          label_list_args=["srcs", "deps"],
                          string_list_args=["includes"],
                          import_statement="load(\"@llvm-project//mlir:tblgen.bzl\", \"td_library\")"),
-      "py_binary": Rule(kind="py_binary", label_list_args=["srcs", "deps"]),
-      "proto_library": Rule(kind="proto_library",
-                            label_list_args=["srcs", "deps", "exports"],
-                            string_list_args=["tags"],
-                            bool_args=["testonly"]),
-      "cc_import": Rule(kind="cc_import",
-                        label_args=["shared_library", "interface_library"],
-                        bool_args=["system_provided"]),
       "tf_gen_options_header": Rule(kind="tf_gen_options_header",
                                     label_args=["template", "output_header"],
                                     str_str_map_args=["build_settings"],
                                     import_statement="load(\"//tensorflow:tensorflow.bzl\", \"tf_gen_options_header\")"),
-      "cc_shared_library": Rule(kind="cc_shared_library",
-                                label_list_args=["roots",
-                                                 "additional_linker_inputs",
-                                                 "dynamic_deps"],
-                                string_list_args=["exports_filter",
-                                                  "user_link_flags"],
-                                string_args=["shared_lib_name"]),
-
       "_transitive_hdrs": Rule(kind="_transitive_hdrs",
                                label_list_args=["deps"]),
       "_transitive_parameters_library": Rule(
@@ -80,7 +49,6 @@ class TensorflowRules:
                                                        "tags"],
                                      bool_args=["linkstatic", "alwayslink"],
                                      import_statement="load(\"//tensorflow/tsl:tsl.bzl\", \"cc_header_only_library\")"),
-      "generated": Rule(kind="generated"),
       "config_setting": Rule(kind="config_setting",
                              str_str_map_args=["values", "flag_values",
                                                "define_values"]),
@@ -91,7 +59,7 @@ class TensorflowRules:
                            import_statement="load(\"@bazel_skylib//rules:common_settings.bzl\", \"bool_setting\")"),
   }
 
-  _ignored_rules: Dict[str, Rule] = {
+  _IGNORED_RULES: Dict[str, Rule] = {
       # Should be actually procesed
       "string_flag": Rule(kind="string_flag"),
 
@@ -119,9 +87,13 @@ class TensorflowRules:
   }
 
   @staticmethod
-  def rules() -> Dict[str, Rule]:
-    return TensorflowRules._rules
+  def rules(extra_rules: Optional[Dict[str, Rule]] = None) -> Dict[str, Rule]:
+    if extra_rules:
+      merged_rules: Dict[str, Rule] = dict(TensorflowRules._RULES)
+      merged_rules.update(extra_rules)
+      return merged_rules
+    return TensorflowRules._RULES
 
   @staticmethod
   def ignored_rules() -> Dict[str, Rule]:
-    return TensorflowRules._ignored_rules
+    return TensorflowRules._IGNORED_RULES

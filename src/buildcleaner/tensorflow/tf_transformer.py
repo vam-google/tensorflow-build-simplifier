@@ -1,18 +1,21 @@
+from typing import Dict
 from typing import List, Optional, Set, cast
 
 from buildcleaner.node import ContainerNode
 from buildcleaner.node import Node
 from buildcleaner.node import TargetNode
-from buildcleaner.tensorflow.rule import TensorflowRules
+from buildcleaner.rule import Rule
+from buildcleaner.rule import BuiltInRules
+from buildcleaner.tensorflow.tf_rule import TensorflowRules
 from buildcleaner.transformer import RuleTransformer
 
 
 class CcHeaderOnlyLibraryTransformer(RuleTransformer):
   def __init__(self) -> None:
-    self._cc_header_only_library = TensorflowRules.rules()[
+    self._cc_header_only_library: Rule = TensorflowRules.rules()[
       "cc_header_only_library"]
-    self._transitive_hdrs = TensorflowRules.rules()["_transitive_hdrs"]
-    self._transitive_parameters_library = TensorflowRules.rules()[
+    self._transitive_hdrs: Rule = TensorflowRules.rules()["_transitive_hdrs"]
+    self._transitive_parameters_library: Rule = TensorflowRules.rules()[
       "_transitive_parameters_library"]
 
   def transform(self, node: Node) -> None:
@@ -57,9 +60,9 @@ class CcHeaderOnlyLibraryTransformer(RuleTransformer):
 
 
 class GenerateCcTransformer(RuleTransformer):
-  def __init__(self):
-    self._generate_cc = TensorflowRules.rules()["generate_cc"]
-    self._private_generate_cc = TensorflowRules.rules()["_generate_cc"]
+  def __init__(self) -> None:
+    self._generate_cc: Rule = TensorflowRules.rules()["generate_cc"]
+    self._private_generate_cc: Rule = TensorflowRules.rules()["_generate_cc"]
 
   def transform(self, node: Node) -> None:
     self._fix_generate_cc_kind(node)
@@ -68,15 +71,39 @@ class GenerateCcTransformer(RuleTransformer):
     if isinstance(node, ContainerNode):
       for child in cast(ContainerNode, node).children.values():
         self._fix_generate_cc_kind(child)
-    else:
-      if node.kind == self._private_generate_cc:
-        target_node = cast(TargetNode, node)
-        target_node.kind = self._generate_cc
-        well_known_protos_arg: Optional[
-          TargetNode] = target_node.label_args.get(
-            "well_known_protos")
-        if well_known_protos_arg:
-          target_node.bool_args["well_known_protos"] = True
-          del target_node.bool_args["well_known_protos"]
-        else:
-          target_node.bool_args["well_known_protos"] = False
+    elif node.kind == self._private_generate_cc:
+      target_node = cast(TargetNode, node)
+      target_node.kind = self._generate_cc
+      well_known_protos_arg: Optional[
+        TargetNode] = target_node.label_args.get(
+          "well_known_protos")
+      if well_known_protos_arg:
+        target_node.bool_args["well_known_protos"] = True
+        del target_node.bool_args["well_known_protos"]
+      else:
+        target_node.bool_args["well_known_protos"] = False
+
+
+class DebugOptsCollector(RuleTransformer):
+  def __init__(self) -> None:
+    self._cc_library: Rule = BuiltInRules.rules()["cc_library"]
+    self._str_list_args: Dict[str, Set[str]] = {"copts": set(),
+                                                "linkopts": set()}
+
+  def transform(self, node: Node) -> None:
+    container_node: ContainerNode = cast(ContainerNode, node)
+    # str_list_args: Dict[str, Set[str]] = {"copts": set(), "linkopts": set()}
+    self._collect_args(container_node, self._str_list_args)
+
+  def _collect_args(self, node: ContainerNode,
+      str_list_args: Dict[str, Set[str]]) -> None:
+    for child in node.children.values():
+      if isinstance(child, ContainerNode):
+        self._collect_args(cast(ContainerNode, child), str_list_args)
+      elif child.kind == self._cc_library:
+        target_node: TargetNode = cast(TargetNode, child)
+        for str_arg_name, str_arg_vals in str_list_args.items():
+          arg_val: Optional[List[str]] = target_node.string_list_args.get(
+              str_arg_name)
+          if arg_val is not None:
+            str_arg_vals.update(arg_val)

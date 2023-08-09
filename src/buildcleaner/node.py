@@ -139,10 +139,10 @@ class TargetNode(Node):
       self.bool_args = dict(copy_node.bool_args)
       self.str_str_map_args = dict(copy_node.str_str_map_args)
 
-  def is_stub(self):
+  def is_stub(self) -> bool:
     return self.kind == TargetNode.target_stub_kind
 
-  def is_external(self):
+  def is_external(self) -> bool:
     return self.label.startswith("@")
 
   @staticmethod
