@@ -3,7 +3,7 @@ from typing import List
 
 from buildcleaner.build import Build
 from buildcleaner.cli import BuildCleanerCli
-from buildcleaner.tensorflow.tf_build import TfBuild
+from buildcleaner.tensorflow.build import TfBuild
 
 
 class TfBuildCleanerCli(BuildCleanerCli):

@@ -6,16 +6,16 @@ from buildcleaner.node import Node
 from buildcleaner.node import TargetNode
 from buildcleaner.rule import Rule
 from buildcleaner.rule import BuiltInRules
-from buildcleaner.tensorflow.tf_rule import TensorflowRules
+from buildcleaner.tensorflow.rule import TfRules
 from buildcleaner.transformer import RuleTransformer
 
 
 class CcHeaderOnlyLibraryTransformer(RuleTransformer):
   def __init__(self) -> None:
-    self._cc_header_only_library: Rule = TensorflowRules.rules()[
+    self._cc_header_only_library: Rule = TfRules.rules()[
       "cc_header_only_library"]
-    self._transitive_hdrs: Rule = TensorflowRules.rules()["_transitive_hdrs"]
-    self._transitive_parameters_library: Rule = TensorflowRules.rules()[
+    self._transitive_hdrs: Rule = TfRules.rules()["_transitive_hdrs"]
+    self._transitive_parameters_library: Rule = TfRules.rules()[
       "_transitive_parameters_library"]
 
   def transform(self, node: Node) -> None:
@@ -61,8 +61,8 @@ class CcHeaderOnlyLibraryTransformer(RuleTransformer):
 
 class GenerateCcTransformer(RuleTransformer):
   def __init__(self) -> None:
-    self._generate_cc: Rule = TensorflowRules.rules()["generate_cc"]
-    self._private_generate_cc: Rule = TensorflowRules.rules()["_generate_cc"]
+    self._generate_cc: Rule = TfRules.rules()["generate_cc"]
+    self._private_generate_cc: Rule = TfRules.rules()["_generate_cc"]
 
   def transform(self, node: Node) -> None:
     self._fix_generate_cc_kind(node)

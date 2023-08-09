@@ -1,13 +1,13 @@
 from buildcleaner.build import Build
 from buildcleaner.parser import BazelBuildTargetsParser
-from buildcleaner.tensorflow.tf_transformer import DebugOptsCollector
+from buildcleaner.tensorflow.transformer import DebugOptsCollector
 from buildcleaner.transformer import ChainTransformer
 from buildcleaner.transformer import ExportFilesTransformer
-from buildcleaner.tensorflow.tf_transformer import \
+from buildcleaner.tensorflow.transformer import \
   CcHeaderOnlyLibraryTransformer
-from buildcleaner.tensorflow.tf_transformer import GenerateCcTransformer
+from buildcleaner.tensorflow.transformer import GenerateCcTransformer
 from buildcleaner.rule import BuiltInRules
-from buildcleaner.tensorflow.tf_rule import TensorflowRules
+from buildcleaner.tensorflow.rule import TfRules
 
 
 class TfBuild(Build):
@@ -16,8 +16,8 @@ class TfBuild(Build):
     self.debug_opts_collector: DebugOptsCollector = DebugOptsCollector()
     super().__init__(root_target, bazel_config,
                      BazelBuildTargetsParser(prefix_path,
-                                             TensorflowRules.rules(BuiltInRules.rules()),
-                                             TensorflowRules.ignored_rules()),
+                                             TfRules.rules(BuiltInRules.rules()),
+                                             TfRules.ignored_rules()),
                      ChainTransformer([
                          CcHeaderOnlyLibraryTransformer(),
                          GenerateCcTransformer(),

@@ -2,7 +2,7 @@ from typing import Dict, Optional
 from buildcleaner.rule import Rule
 
 
-class TensorflowRules:
+class TfRules:
   _RULES: Dict[str, Rule] = {
       "proto_gen": Rule(kind="proto_gen",
                         label_list_args=["srcs", "deps", "outs"],
@@ -89,11 +89,11 @@ class TensorflowRules:
   @staticmethod
   def rules(extra_rules: Optional[Dict[str, Rule]] = None) -> Dict[str, Rule]:
     if extra_rules:
-      merged_rules: Dict[str, Rule] = dict(TensorflowRules._RULES)
+      merged_rules: Dict[str, Rule] = dict(TfRules._RULES)
       merged_rules.update(extra_rules)
       return merged_rules
-    return TensorflowRules._RULES
+    return TfRules._RULES
 
   @staticmethod
   def ignored_rules() -> Dict[str, Rule]:
-    return TensorflowRules._IGNORED_RULES
+    return TfRules._IGNORED_RULES
