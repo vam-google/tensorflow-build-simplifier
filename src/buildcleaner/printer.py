@@ -1,8 +1,9 @@
-from typing import Union, Dict, List, Set, Tuple, cast
+from typing import Union, Dict, List, Set, Tuple, Any, cast
 
 from buildcleaner.node import Function, Node, ContainerNode, TargetNode, \
   FileNode, RepositoryNode, PackageNode
 from buildcleaner.graph import DgPkgBuilder
+from functools import cmp_to_key
 
 
 class DebugTreePrinter:
@@ -49,12 +50,15 @@ class DebugTreePrinter:
 
 
 class BuildTargetsPrinter:
+  def __init__(self) -> None:
+    self._targets_cmp_key = cmp_to_key(self._targets_in_package_comparator)
+
   def print_build_file(self, pkg_node: PackageNode) -> str:
     nodes: List[TargetNode] = []
-    for t in pkg_node.get_targets(None):
+    for t in pkg_node.get_targets():
       if type(t) == TargetNode:
         nodes.append(t)
-    nodes.sort()
+    nodes.sort(key=self._targets_cmp_key)
 
     import_statements: Set[str] = set()
     targets: List[str] = []
@@ -81,6 +85,23 @@ class BuildTargetsPrinter:
 
     return "" if len(file_blocks) == 1 else "\n".join(file_blocks)
 
+  def _targets_in_package_comparator(self, left: TargetNode,
+      right: TargetNode) -> int:
+    # if left.generator_function != right.generator_function:
+    #   return self._cmp_objs(left.generator_function, right.generator_function)
+    if left.generator_name != right.generator_name:
+      return self._cmp_objs(left.generator_name, right.generator_name)
+    if left.kind != right.kind:
+      return self._cmp_objs(left.kind.kind, right.kind.kind)
+    return self._cmp_objs(left.label, right.label)
+
+  def _cmp_objs(self, left: Any, right: Any) -> int:
+    if left < right:
+      return -1
+    if left > right:
+      return 1
+    return 0
+
   def _print_target(self, pkg_node: PackageNode,
       node: TargetNode) -> List[str]:
     if node.kind.kind == "bind":
@@ -95,8 +116,12 @@ class BuildTargetsPrinter:
     bool_args_block: str = self._print_bool_args(node.bool_args)
     map_args_block: str = self._print_map_args(node.str_str_map_args)
 
+    generator_info: str = ""
+    if node.generator_name:
+      generator_info = f"\n# generator_function = {node.generator_function}\n# generator_name = {node.generator_name}"
+
     target = f"""
-# {str(node)}
+# {node}{generator_info}
 {node.kind}(
     name = "{node.name}",{list_args_block}{string_args_block}{bool_args_block}{map_args_block}
     visibility = ["//visibility:public"],
@@ -132,7 +157,7 @@ class BuildTargetsPrinter:
           arg_str = f"    {list_arg_name} = [\"{list_arg_values[0]}\"],"
         else:
           list_arg_str_values = "\"" + "\",\n        \"".join(
-              list_arg_values) + "\","
+              sorted(list_arg_values)) + "\","
           arg_str = f"""    {list_arg_name} = [
         {list_arg_str_values}
     ],"""

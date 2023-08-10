@@ -22,6 +22,11 @@ class BazelBuildTargetsParser:
     self._arg_label_regex: Dict[str, Pattern] = {}
     self._arg_string_list_regex: Dict[str, Pattern] = {}
     self._arg_string_regex: Dict[str, Pattern] = {}
+
+    for build_in_arg in ["name", "generator_name", "generator_function"]:
+      self._arg_string_regex[build_in_arg] = re.compile(
+          fr"\b{build_in_arg}\b\s*=\s*\"(?P<value>[0-9a-zA-Z\-\._\+/]+)\"")
+
     self._arg_string_regex["name"] = re.compile(
         r"\bname\b\s*=\s*\"(?P<value>[0-9a-zA-Z\-\._\+/]+)\"")
     self._arg_bool_regex: Dict[str, Pattern] = {}
@@ -126,6 +131,15 @@ class BazelBuildTargetsParser:
       else:
         node = TargetNode(rule, rule_name.group("value"),
                           f"//{rule_pkg.group('value')}")
+
+      generator_name: Optional[Match[str]] = self._arg_string_regex[
+        "generator_name"].search(target_rule)
+      if generator_name:
+        node.generator_name = generator_name.group("value")
+      generator_function: Optional[Match[str]] = self._arg_string_regex[
+        "generator_function"].search(target_rule)
+      if generator_function:
+        node.generator_function = generator_function.group("value")
 
       for label_list_arg in rule.label_list_args:
         match = self._arg_label_list_regex[label_list_arg].search(target_rule)

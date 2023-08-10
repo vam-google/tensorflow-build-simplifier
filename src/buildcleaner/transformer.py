@@ -12,7 +12,6 @@ from buildcleaner.rule import PackageFunctions
 
 
 class RuleTransformer:
-  @abstractmethod
   def transform(self, node: Node) -> None:
     pass
 

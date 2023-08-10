@@ -130,6 +130,9 @@ class TargetNode(Node):
     self.string_args: Dict[str, str] = {}
     self.bool_args: Dict[str, bool] = {}
     self.str_str_map_args: Dict[str, Dict[str, str]] = {}
+    self.generator_name: str = ""
+    self.generator_function: str = ""
+
 
     if copy_node:
       self.label_list_args = dict(copy_node.label_list_args)
@@ -138,6 +141,8 @@ class TargetNode(Node):
       self.string_args = dict(copy_node.string_args)
       self.bool_args = dict(copy_node.bool_args)
       self.str_str_map_args = dict(copy_node.str_str_map_args)
+      self.generator_function = copy_node.generator_function
+      self.generator_name = copy_node.generator_name
 
   def is_stub(self) -> bool:
     return self.kind == TargetNode.target_stub_kind

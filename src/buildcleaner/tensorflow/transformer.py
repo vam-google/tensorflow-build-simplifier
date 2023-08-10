@@ -1,13 +1,15 @@
-from typing import Dict
-from typing import List, Optional, Set, cast
+from typing import Dict, List, Optional, Set, Tuple, cast
 
 from buildcleaner.node import ContainerNode
+from buildcleaner.node import PackageNode
 from buildcleaner.node import Node
+from buildcleaner.node import FileNode
 from buildcleaner.node import TargetNode
 from buildcleaner.rule import Rule
 from buildcleaner.rule import BuiltInRules
 from buildcleaner.tensorflow.rule import TfRules
 from buildcleaner.transformer import RuleTransformer
+from queue import Queue
 
 
 class CcHeaderOnlyLibraryTransformer(RuleTransformer):
@@ -82,6 +84,93 @@ class GenerateCcTransformer(RuleTransformer):
         del target_node.bool_args["well_known_protos"]
       else:
         target_node.bool_args["well_known_protos"] = False
+
+
+class TotalCcLibraryMergeTransformer(RuleTransformer):
+  def __init__(self, root_target: TargetNode) -> None:
+    self._root_target: TargetNode = root_target
+    self._cc_library: Rule = BuiltInRules.rules()["cc_library"]
+    self._generated: Rule = BuiltInRules.rules()["generated"]
+    self._alias: Rule = BuiltInRules.rules()["alias"]
+    self._cc_shared_library: Rule = BuiltInRules.rules()["cc_shared_library"]
+
+  def transform(self, node: Node) -> None:
+    root_node_package: PackageNode = cast(PackageNode, node)
+
+    next_targets: 'Queue[TargetNode]' = Queue()
+    roots: List[TargetNode] = self._root_target.label_list_args["roots"]
+
+
+    for root in roots:
+      next_targets.put_nowait(root)
+
+    agg_label_list_args: Dict[str, Set[TargetNode]]
+    agg_string_list_args: Dict[str, Set[str]]
+    agg_label_list_args, agg_string_list_args = self._bfs_cpp_info_deps(
+        next_targets)
+
+    agg_cc_library: TargetNode = TargetNode(self._cc_library,
+                                            f"aggregated_{self._root_target.name}",
+                                            self._root_target.get_parent_label())
+
+    for arg_name, arg_label_val in agg_label_list_args.items():
+      agg_cc_library.label_list_args.setdefault(arg_name, []).extend(arg_label_val)
+
+    for arg_name, arg_str_val in agg_string_list_args.items():
+      agg_cc_library.string_list_args.setdefault(arg_name, []).extend(arg_str_val)
+
+    root_node_package.children[str(agg_cc_library)] = agg_cc_library
+
+  def _bfs_cpp_info_deps(self,
+      next_targets: 'Queue[TargetNode]') -> Tuple[
+    Dict[str, Set[TargetNode]], Dict[str, Set[str]]]:
+
+    agg_label_list_args: Dict[str, Set[TargetNode]] = {}
+    agg_string_list_args: Dict[str, Set[str]] = {}
+    for arg_name in ["hdrs", "srcs", "deps", "textual_hdrs"]:
+      agg_label_list_args[arg_name] = set()
+    for arg_name in ["copts", "linkopts", "features", "includes", "strip_include_prefix"]:
+      agg_string_list_args[arg_name] = set()
+
+    visited: Set[TargetNode] = set()
+    first_level_count: int = next_targets.qsize()
+
+    while not next_targets.empty():
+      target: TargetNode = next_targets.get()
+      first_level_count -= 1
+      if target.kind == self._alias:
+        alias_actual: TargetNode = target.label_args["actual"]
+        if alias_actual not in visited:
+          visited.add(alias_actual)
+          next_targets.put_nowait(alias_actual)
+        continue
+      if target.kind != self._cc_library:
+        continue
+
+      for arg_name in agg_label_list_args:
+        arg_label_val: Optional[List[TargetNode]] = target.label_list_args.get(
+            arg_name)
+        if not arg_label_val:
+          continue
+        actual_arg_name: str = arg_name
+        if first_level_count < 0 and arg_name == "hdrs":
+          actual_arg_name = "srcs"
+        for arg_label_item in arg_label_val:
+          if isinstance(arg_label_item,
+                        FileNode) or arg_label_item.kind == self._generated or arg_label_item.is_external():
+            agg_label_list_args[actual_arg_name].add(arg_label_item)
+          else:
+            if arg_label_item not in visited:
+              visited.add(arg_label_item)
+              next_targets.put_nowait(arg_label_item)
+
+      for arg_name in agg_string_list_args:
+        arg_str_val: Optional[List[str]] = target.string_list_args.get(arg_name)
+        if not arg_str_val:
+          continue
+        agg_string_list_args.setdefault(arg_name, set()).update(arg_str_val)
+
+    return agg_label_list_args, agg_string_list_args
 
 
 class DebugOptsCollector(RuleTransformer):
