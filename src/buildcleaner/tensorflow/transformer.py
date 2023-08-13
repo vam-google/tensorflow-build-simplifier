@@ -96,6 +96,7 @@ class TotalCcLibraryMergeTransformer(RuleTransformer):
     self._root_target: TargetNode = root_target
     self._cc_library: Rule = BuiltInRules.rules()["cc_library"]
     self._generated: Rule = BuiltInRules.rules()["generated"]
+    self._filegroup: Rule = BuiltInRules.rules()["filegroup"]
     self._alias: Rule = BuiltInRules.rules()["alias"]
     self._cc_shared_library: Rule = BuiltInRules.rules()["cc_shared_library"]
 
@@ -151,7 +152,8 @@ class TotalCcLibraryMergeTransformer(RuleTransformer):
           visited.add(alias_actual)
           next_targets.put_nowait(alias_actual)
         continue
-      if target.kind != self._cc_library:
+
+      if target.kind != self._cc_library and target.kind != self._filegroup:
         continue
 
       for arg_name in agg_label_list_args:
@@ -159,12 +161,13 @@ class TotalCcLibraryMergeTransformer(RuleTransformer):
             arg_name)
         if not arg_label_val:
           continue
-        actual_arg_name: str = arg_name
-        if first_level_count < 0 and arg_name == "hdrs":
-          actual_arg_name = "srcs"
         for arg_label_item in arg_label_val:
           if isinstance(arg_label_item,
                         FileNode) or arg_label_item.kind == self._generated or arg_label_item.is_external():
+            actual_arg_name: str = arg_name
+            if arg_name == "hdrs":
+              if "." in arg_label_item.name and first_level_count < 0:
+                actual_arg_name = "srcs"
             agg_label_list_args[actual_arg_name].add(arg_label_item)
           else:
             if arg_label_item not in visited:

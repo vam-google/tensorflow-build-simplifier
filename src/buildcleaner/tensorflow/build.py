@@ -26,10 +26,10 @@ class TfBuild(Build):
                          # self.debug_opts_collector,
                      ]))
 
-    # cc_merge_tranformer: TotalCcLibraryMergeTransformer = TotalCcLibraryMergeTransformer(
-    #     self.input_target)
-    # cc_merge_tranformer.transform(
-    #     self.package_nodes[self.input_target.get_parent_label()])
+    cc_merge_tranformer: TotalCcLibraryMergeTransformer = TotalCcLibraryMergeTransformer(
+        self.input_target)
+    cc_merge_tranformer.transform(
+        self.package_nodes[self.input_target.get_parent_label()])
 
     export_files_tranformer: ExportFilesTransformer = ExportFilesTransformer()
     export_files_tranformer.transform(self.package_nodes["//"])
