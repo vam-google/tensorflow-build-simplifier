@@ -6,6 +6,7 @@ from buildcleaner.tensorflow.transformer import \
   CcHeaderOnlyLibraryTransformer
 from buildcleaner.tensorflow.transformer import DebugOptsCollector
 from buildcleaner.tensorflow.transformer import GenerateCcTransformer
+from buildcleaner.tensorflow.transformer import TotalCcLibraryMergeTransformer
 from buildcleaner.transformer import ChainTransformer
 from buildcleaner.transformer import ExportFilesTransformer
 

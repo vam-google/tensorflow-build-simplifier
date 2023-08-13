@@ -184,7 +184,7 @@ class BuildTargetsPrinter:
         list_arg_str_values = "\"" + "\",\n        \"".join(
             sorted(list_arg_values) if sort_vals else list_arg_values) + "\","
         arg_str = f"""    {list_arg_name} = [
-      {list_arg_str_values}
+        {list_arg_str_values}
     ],"""
       list_args_strs.append(arg_str)
     return "\n" + "\n".join(list_args_strs) if list_args_strs else ""
