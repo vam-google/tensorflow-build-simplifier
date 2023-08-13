@@ -1,7 +1,6 @@
-from typing import Dict
-
 import os
 import subprocess
+from typing import Dict
 
 
 class BuildFilesWriter:

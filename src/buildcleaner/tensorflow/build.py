@@ -1,14 +1,13 @@
 from buildcleaner.build import Build
 from buildcleaner.parser import BazelBuildTargetsParser
-from buildcleaner.tensorflow.transformer import DebugOptsCollector
-from buildcleaner.transformer import ChainTransformer
-from buildcleaner.transformer import ExportFilesTransformer
-from buildcleaner.tensorflow.transformer import \
-  CcHeaderOnlyLibraryTransformer
-from buildcleaner.tensorflow.transformer import TotalCcLibraryMergeTransformer
-from buildcleaner.tensorflow.transformer import GenerateCcTransformer
 from buildcleaner.rule import BuiltInRules
 from buildcleaner.tensorflow.rule import TfRules
+from buildcleaner.tensorflow.transformer import \
+  CcHeaderOnlyLibraryTransformer
+from buildcleaner.tensorflow.transformer import DebugOptsCollector
+from buildcleaner.tensorflow.transformer import GenerateCcTransformer
+from buildcleaner.transformer import ChainTransformer
+from buildcleaner.transformer import ExportFilesTransformer
 
 
 class TfBuild(Build):
@@ -18,7 +17,7 @@ class TfBuild(Build):
     super().__init__(root_target, bazel_config,
                      BazelBuildTargetsParser(prefix_path,
                                              TfRules.rules(
-                                               BuiltInRules.rules()),
+                                                 BuiltInRules.rules()),
                                              TfRules.ignored_rules()),
                      ChainTransformer([
                          CcHeaderOnlyLibraryTransformer(),
@@ -27,7 +26,7 @@ class TfBuild(Build):
                      ]))
 
     # cc_merge_tranformer: TotalCcLibraryMergeTransformer = TotalCcLibraryMergeTransformer(
-    #   self.input_target)
+    #     self.input_target)
     # cc_merge_tranformer.transform(
     #     self.package_nodes[self.input_target.get_parent_label()])
 

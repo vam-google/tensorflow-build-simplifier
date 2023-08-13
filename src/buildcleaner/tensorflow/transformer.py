@@ -1,15 +1,20 @@
-from typing import Dict, List, Optional, Set, Tuple, cast
+from queue import Queue
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Set
+from typing import Tuple
+from typing import cast
 
 from buildcleaner.node import ContainerNode
-from buildcleaner.node import PackageNode
-from buildcleaner.node import Node
 from buildcleaner.node import FileNode
+from buildcleaner.node import Node
+from buildcleaner.node import PackageNode
 from buildcleaner.node import TargetNode
-from buildcleaner.rule import Rule
 from buildcleaner.rule import BuiltInRules
+from buildcleaner.rule import Rule
 from buildcleaner.tensorflow.rule import TfRules
 from buildcleaner.transformer import RuleTransformer
-from queue import Queue
 
 
 class CcHeaderOnlyLibraryTransformer(RuleTransformer):
@@ -100,7 +105,6 @@ class TotalCcLibraryMergeTransformer(RuleTransformer):
     next_targets: 'Queue[TargetNode]' = Queue()
     roots: List[TargetNode] = self._root_target.label_list_args["roots"]
 
-
     for root in roots:
       next_targets.put_nowait(root)
 
@@ -114,10 +118,12 @@ class TotalCcLibraryMergeTransformer(RuleTransformer):
                                             self._root_target.get_parent_label())
 
     for arg_name, arg_label_val in agg_label_list_args.items():
-      agg_cc_library.label_list_args.setdefault(arg_name, []).extend(arg_label_val)
+      agg_cc_library.label_list_args.setdefault(arg_name, []).extend(
+          arg_label_val)
 
     for arg_name, arg_str_val in agg_string_list_args.items():
-      agg_cc_library.string_list_args.setdefault(arg_name, []).extend(arg_str_val)
+      agg_cc_library.string_list_args.setdefault(arg_name, []).extend(
+          arg_str_val)
 
     root_node_package.children[str(agg_cc_library)] = agg_cc_library
 
@@ -129,7 +135,8 @@ class TotalCcLibraryMergeTransformer(RuleTransformer):
     agg_string_list_args: Dict[str, Set[str]] = {}
     for arg_name in ["hdrs", "srcs", "deps", "textual_hdrs"]:
       agg_label_list_args[arg_name] = set()
-    for arg_name in ["copts", "linkopts", "features", "includes", "strip_include_prefix"]:
+    for arg_name in ["copts", "linkopts", "features", "includes",
+                     "strip_include_prefix"]:
       agg_string_list_args[arg_name] = set()
 
     visited: Set[TargetNode] = set()

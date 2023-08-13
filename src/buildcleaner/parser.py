@@ -1,10 +1,18 @@
-from typing import Dict, List, Callable, Tuple, Set, Optional
-from typing import Pattern, Match
-
-from buildcleaner.node import TargetNode, FileNode
-from buildcleaner.rule import Rule
-
 import re
+from itertools import chain
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Match
+from typing import Optional
+from typing import Pattern
+from typing import Set
+from typing import Tuple
+
+from buildcleaner.node import FileNode
+from buildcleaner.node import GeneratedFileNode
+from buildcleaner.node import TargetNode
+from buildcleaner.rule import Rule
 
 
 class BazelBuildTargetsParser:
@@ -27,10 +35,11 @@ class BazelBuildTargetsParser:
       self._arg_string_regex[build_in_arg] = re.compile(
           fr"\b{build_in_arg}\b\s*=\s*\"(?P<value>[0-9a-zA-Z\-\._\+/]+)\"")
 
-    self._arg_string_regex["name"] = re.compile(
-        r"\bname\b\s*=\s*\"(?P<value>[0-9a-zA-Z\-\._\+/]+)\"")
     self._arg_bool_regex: Dict[str, Pattern] = {}
     self._arg_str_str_map_regex: Dict[str, Pattern] = {}
+
+    self._arg_out_label_list_regex: Dict[str, Pattern] = {}
+    self._arg_out_label_regex: Dict[str, Pattern] = {}
 
     self._rule_parsers: List[
       Tuple[Pattern, Callable[[str], Optional[TargetNode]]]] = []
@@ -65,6 +74,13 @@ class BazelBuildTargetsParser:
       self._arg_str_str_map_regex[arg] = re.compile(
           fr"\b{arg}\b\s*=\s*\{{(?P<values>.+)\}}[,\s]*\n")
 
+    for arg in rule.out_label_list_args:
+      self._arg_out_label_list_regex[arg] = re.compile(
+          fr"\b{arg}\b\s*=\s*\[(?P<values>.+)\][,\s]*\n")
+    for arg in rule.out_label_args:
+      self._arg_out_label_regex[arg] = re.compile(
+          fr"\b{arg}\b\s*=\s*\"(?P<value>.*)\"")
+
   def parse_query_build_output(self, query_build_output: str) -> Tuple[
     Dict[str, TargetNode], Set[str], Set[str]]:
     target_rules = self._target_splitter_regex.split(query_build_output.strip())
@@ -73,7 +89,7 @@ class BazelBuildTargetsParser:
     internal_nodes: Dict[str, TargetNode] = {}
 
     for target_rule in target_rules:
-      unknown_rule = True
+      unknown_rule: bool = True
       if not target_rule:
         continue
       for rule_parser in self._rule_parsers:
@@ -83,14 +99,24 @@ class BazelBuildTargetsParser:
           if not node:
             continue
           internal_nodes[str(node)] = node
+          # Put out nodes to list of all nodes so dependency on them can be
+          # properly sesovled
+          for out_nodes in node.out_label_list_args.values():
+            for out_node in out_nodes:
+              internal_nodes[str(out_node)] = out_node
+          for out_node in node.out_label_args.values():
+            internal_nodes[str(out_node)] = out_node
           internal_targets.add(node.label)
-          for targets in node.label_list_args.values():
+
+          for targets in chain(node.label_list_args.values(),
+                               node.out_label_list_args.values()):
             for t in targets:
               if t.label[0] == "@":
                 external_targets.add(t.label)
               else:
                 internal_targets.add(t.label)
-          for t in node.label_args.values():
+          for t in chain(node.label_args.values(),
+                         node.out_label_args.values()):
             if t.label[0] == "@":
               external_targets.add(t.label)
             else:
@@ -140,7 +166,9 @@ class BazelBuildTargetsParser:
         "generator_function"].search(target_rule)
       if generator_function:
         node.generator_function = generator_function.group("value")
-
+      t: str
+      match: Optional[Match[str]]
+      t_node: TargetNode
       for label_list_arg in rule.label_list_args:
         match = self._arg_label_list_regex[label_list_arg].search(target_rule)
         if match:
@@ -183,6 +211,23 @@ class BazelBuildTargetsParser:
             node.str_str_map_args.setdefault(str_str_map_arg, dict())[
               self._normalize_value(arg_k_v[0])] = self._normalize_value(
                 arg_k_v[1])
+
+      for out_label_list_arg in rule.out_label_list_args:
+        match = self._arg_out_label_list_regex[out_label_list_arg].search(
+            target_rule)
+        if match:
+          for arg_value in match.group("values").split(", "):
+            t = self._normalize_value(arg_value)
+            t_node = GeneratedFileNode.create_gen_file(t, node)
+            node.out_label_list_args.setdefault(out_label_list_arg, []).append(
+                t_node)
+
+      for out_label_arg in rule.out_label_args:
+        match = self._arg_out_label_regex[out_label_arg].search(target_rule)
+        if match:
+          t = self._normalize_value(match.group("value"))
+          t_node = GeneratedFileNode.create_gen_file(t, node)
+          node.out_label_args[out_label_arg] = t_node
 
       return node
 

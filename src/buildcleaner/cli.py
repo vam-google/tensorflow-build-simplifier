@@ -1,19 +1,20 @@
 import os
 import time
-
-from typing import Dict, Optional, List
 from abc import abstractmethod
+from typing import Dict
+from typing import List
+from typing import Optional
 
-from buildcleaner.graph import DgPkgBuilder
-from buildcleaner.printer import BuildFilesPrinter
-from buildcleaner.printer import GraphPrinter
-from buildcleaner.printer import DebugTreePrinter
+from buildcleaner.build import Build
 from buildcleaner.fileio import BuildFilesWriter
 from buildcleaner.fileio import GraphvizWriter
-from buildcleaner.node import TargetNode
+from buildcleaner.graph import DgPkgBuilder
 from buildcleaner.node import ContainerNode
 from buildcleaner.node import RepositoryNode
-from buildcleaner.build import Build
+from buildcleaner.node import TargetNode
+from buildcleaner.printer import BuildFilesPrinter
+from buildcleaner.printer import DebugTreePrinter
+from buildcleaner.printer import GraphPrinter
 
 
 class BuildCleanerCli:
@@ -55,6 +56,7 @@ class BuildCleanerCli:
   def main(self) -> None:
     start: float = time.time()
 
+    print("> Parsing Build Graph ...")
     build: Build = self.generate_build(self._root_target, self._bazel_config,
                                        self._prefix_path)
 
@@ -86,6 +88,7 @@ class BuildCleanerCli:
 
   def _generate_build_files(self, repo: RepositoryNode,
       output_build_path: str, build_file_name: str) -> None:
+    print("> Generating Build Files ...")
     build_files_printer: BuildFilesPrinter = BuildFilesPrinter()
     build_files: Dict[str, str] = build_files_printer.print_build_files(repo)
     build_files_writer: BuildFilesWriter = BuildFilesWriter(output_build_path,
@@ -94,6 +97,7 @@ class BuildCleanerCli:
 
   def _print_target_graph(self, dag_builder: DgPkgBuilder,
       graph_path: str) -> None:
+    print("> Generating Targets Graph ...")
     graph_printer: GraphPrinter = GraphPrinter(dag_builder)
     inbound_graph = graph_printer.print_target_dag(True)
     outbound_graph = graph_printer.print_target_dag(False)
@@ -117,6 +121,7 @@ class BuildCleanerCli:
 
   def _print_package_graph(self, dg_builder: DgPkgBuilder,
       graph_path: str) -> None:
+    print("> Generating Package Graph ...")
     graph_printer: GraphPrinter = GraphPrinter(dg_builder)
     inbound_graph: str = graph_printer.print_package_dg(True)
     outbound_graph: str = graph_printer.print_package_dg(False)
@@ -161,4 +166,3 @@ class BuildCleanerCli:
       print(tree_printer.print_nodes_tree(package_nodes[""], return_string=True,
                                           print_files=False))
       print("^^^^^ DEBUG: Tree ^^^^^\n")
-

@@ -1,9 +1,12 @@
-from typing import Dict, List, Set, Iterable, cast
-
-from buildcleaner.parser import BazelBuildTargetsParser
-from buildcleaner.node import TargetNode
-
 import subprocess
+from typing import Dict
+from typing import Iterable
+from typing import List
+from typing import Set
+from typing import cast
+
+from buildcleaner.node import TargetNode
+from buildcleaner.parser import BazelBuildTargetsParser
 
 
 class BazelRunner:
@@ -88,53 +91,73 @@ class TargetsCollector:
       str, TargetNode]] = self._bazel_query_parser.parse_query_label_kind_output(
         self._runner.query_deps_output(root_target, config=bazel_config,
                                        output="label_kind"))
-    self._resolve_references(res, nodes_by_kind)
+    res.all_nodes = self._resolve_references(res.all_nodes, nodes_by_kind)
     res.nodes_by_kind = nodes_by_kind
 
+    self._check_non_resolved_targets(res.all_nodes)
     return res
 
-  def collect_targets(self, root_target: str,
-      bazel_config: str) -> CollectedTargets:
-    next_level_internal_targets: Set[str] = {root_target}
+  def _check_non_resolved_targets(self,
+      all_nodes: Dict[str, TargetNode]) -> None:
+    unresolved_targets: Dict[TargetNode, List[str]] = {}
+    for node in all_nodes.values():
+      if node.is_stub():
+        unresolved_targets.setdefault(node, []).append(str(node))
+      for ref_target in node.get_targets():
+        if ref_target.is_stub():
+          unresolved_targets.setdefault(ref_target, []).append(str(node))
 
-    res: CollectedTargets = CollectedTargets()
-    while len(next_level_internal_targets) > 0:
-      res.iterations += 1
-      res.incremental_lengths.append(len(next_level_internal_targets))
-      print(
-          f"Iteration: {res.iterations}, Next Level Targets: {len(next_level_internal_targets)}")
-      res.all_targets.update(next_level_internal_targets)
-      bazel_query_stdout = self._runner.query_output(
-          next_level_internal_targets,
-          config=bazel_config)
-      internal_nodes, external_targets, internal_targets = self._bazel_query_parser.parse_query_build_output(
-          bazel_query_stdout)
-      res.all_nodes.update(internal_nodes)
-      next_level_internal_targets = internal_targets - res.all_targets
+    unresolved_strs = []
+    if unresolved_targets:
+      for t, referenced_from_t in unresolved_targets.items():
+        referenced_from_str: str = ", ".join(referenced_from_t)
+        unresolved_strs.append(f"{t} <- [{referenced_from_str}]")
+      unresolved_strs.sort()
+      unresolved_str = '\n'.join(unresolved_strs)
+      # raise ValueError(f"Unresolved targets found:\n\n{unresolved_str} \n Total unresolved targets: {len(unresolved_strs)}")
 
-    # Resolve references
-    nodes_by_kind: Dict[str, Dict[
-      str, TargetNode]] = self._bazel_query_parser.parse_query_label_kind_output(
-        self._runner.query_output(res.all_targets, output="label_kind"))
+  # def collect_targets(self, root_target: str,
+  #     bazel_config: str) -> CollectedTargets:
+  #   next_level_internal_targets: Set[str] = {root_target}
+  #
+  #   res: CollectedTargets = CollectedTargets()
+  #   while len(next_level_internal_targets) > 0:
+  #     res.iterations += 1
+  #     res.incremental_lengths.append(len(next_level_internal_targets))
+  #     print(
+  #         f"Iteration: {res.iterations}, Next Level Targets: {len(next_level_internal_targets)}")
+  #     res.all_targets.update(next_level_internal_targets)
+  #     bazel_query_stdout = self._runner.query_output(
+  #         next_level_internal_targets,
+  #         config=bazel_config)
+  #     internal_nodes, external_targets, internal_targets = self._bazel_query_parser.parse_query_build_output(
+  #         bazel_query_stdout)
+  #     res.all_nodes.update(internal_nodes)
+  #     next_level_internal_targets = internal_targets - res.all_targets
+  #
+  #   # Resolve references
+  #   nodes_by_kind: Dict[str, Dict[
+  #     str, TargetNode]] = self._bazel_query_parser.parse_query_label_kind_output(
+  #       self._runner.query_output(res.all_targets, output="label_kind"))
+  #
+  #   res.all_nodes = self._resolve_references(res.all_nodes, nodes_by_kind)
+  #   res.nodes_by_kind = nodes_by_kind
+  #
+  #   return res
 
-    self._resolve_references(res, nodes_by_kind)
-    res.nodes_by_kind = nodes_by_kind
-
-    return res
-
-  def _resolve_references(self, res: CollectedTargets,
-      nodes_by_kind: Dict[str, Dict[str, TargetNode]]) -> None:
+  def _resolve_references(self, all_nodes: Dict[str, TargetNode],
+      nodes_by_kind: Dict[str, Dict[str, TargetNode]]) -> Dict[str, TargetNode]:
     new_all_nodes: Dict[str, TargetNode] = self.resolve_label_references(
-        res.all_nodes, nodes_by_kind["source"])
-    new_all_nodes.update(res.all_nodes)
-    res.all_nodes = new_all_nodes
+        all_nodes, nodes_by_kind["source"])
+    new_all_nodes.update(all_nodes)
 
     # Make sure nodes_by_kind and all_nodes share the same node references for
     # the same label
-    for node_key, node in res.all_nodes.items():
+    for node_key, node in new_all_nodes.items():
       nodes_of_a_kind: Dict[str, TargetNode] = nodes_by_kind[node.kind.kind]
       if nodes_of_a_kind:
         nodes_of_a_kind[str(node)] = node
+    return new_all_nodes
 
   def resolve_label_references(self, nodes_dict: Dict[str, TargetNode],
       files_dict: Dict[str, TargetNode]) -> Dict[str, TargetNode]:

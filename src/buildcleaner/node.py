@@ -1,6 +1,12 @@
 from __future__ import annotations
-from typing import Dict, Optional, List, Iterable, cast
 
+from typing import Dict
+from typing import Iterable
+from typing import List
+from typing import Optional
+from typing import cast
+
+from buildcleaner.rule import BuiltInRules
 from buildcleaner.rule import Rule
 
 
@@ -79,29 +85,29 @@ class ContainerNode(Node):
 
 
 class RootNode(ContainerNode):
-  _rule_kind: Rule = Rule("__root__")
+  _RULE_KIND: Rule = Rule("__root__")
 
   def __init__(self, name: str) -> None:
-    super().__init__(RootNode._rule_kind, name, name, None)
+    super().__init__(RootNode._RULE_KIND, name, name, None)
 
 
 class RepositoryNode(ContainerNode):
-  _rule_kind: Rule = Rule("__repository__")
+  _RULE_KIND: Rule = Rule("__repository__")
 
   def __init__(self, name: str, parent_label: str) -> None:
-    super().__init__(RepositoryNode._rule_kind, name, f"{parent_label}{name}//",
+    super().__init__(RepositoryNode._RULE_KIND, name, f"{parent_label}{name}//",
                      None)
 
 
 class PackageNode(ContainerNode):
-  _rule_kind: Rule = Rule("__package__")
+  _RULE_KIND: Rule = Rule("__package__")
 
   def __init__(self, name: str, parent_label: str, depth: int,
       copy_node: Optional[PackageNode] = None) -> None:
     if copy_node:
-      super().__init__(PackageNode._rule_kind, "", "", copy_node)
+      super().__init__(PackageNode._RULE_KIND, "", "", copy_node)
     else:
-      super().__init__(PackageNode._rule_kind, name,
+      super().__init__(PackageNode._RULE_KIND, name,
                        f"{parent_label}{'' if depth <= 2 else '/'}{name}",
                        None)
 
@@ -115,7 +121,7 @@ class PackageNode(ContainerNode):
 
 
 class TargetNode(Node):
-  target_stub_kind: Rule = Rule("__target_stub__")
+  _TARGET_STUB_KIND: Rule = Rule("__target_stub__")
 
   def __init__(self, kind: Rule, name: str, parent_label: str,
       copy_node: Optional[TargetNode] = None) -> None:
@@ -130,9 +136,11 @@ class TargetNode(Node):
     self.string_args: Dict[str, str] = {}
     self.bool_args: Dict[str, bool] = {}
     self.str_str_map_args: Dict[str, Dict[str, str]] = {}
+    self.out_label_list_args: Dict[str, List[TargetNode]] = {}
+    self.out_label_args: Dict[str, TargetNode] = {}
+
     self.generator_name: str = ""
     self.generator_function: str = ""
-
 
     if copy_node:
       self.label_list_args = dict(copy_node.label_list_args)
@@ -141,19 +149,23 @@ class TargetNode(Node):
       self.string_args = dict(copy_node.string_args)
       self.bool_args = dict(copy_node.bool_args)
       self.str_str_map_args = dict(copy_node.str_str_map_args)
+
+      self.out_label_list_args = dict(copy_node.out_label_list_args)
+      self.out_label_args = dict(copy_node.out_label_args)
+
       self.generator_function = copy_node.generator_function
       self.generator_name = copy_node.generator_name
 
   def is_stub(self) -> bool:
-    return self.kind == TargetNode.target_stub_kind
+    return self.kind == TargetNode._TARGET_STUB_KIND
 
   def is_external(self) -> bool:
     return self.label.startswith("@")
 
   @staticmethod
   def create_stub(label: str) -> TargetNode:
-    pkg_and_name = label.split(":")
-    return TargetNode(TargetNode.target_stub_kind, pkg_and_name[1],
+    pkg_and_name: List[str] = label.split(":")
+    return TargetNode(TargetNode._TARGET_STUB_KIND, pkg_and_name[1],
                       pkg_and_name[0])
 
   def get_parent_label(self) -> str:
@@ -172,7 +184,23 @@ class TargetNode(Node):
 
 
 class FileNode(TargetNode):
-  source_file_kind: Rule = Rule("source")
+  SOURCE_FILE_KIND: Rule = Rule("source")
 
   def __init__(self, name: str, parent_label: str) -> None:
-    super().__init__(FileNode.source_file_kind, name, parent_label, None)
+    super().__init__(FileNode.SOURCE_FILE_KIND, name, parent_label, None)
+
+
+class GeneratedFileNode(TargetNode):
+  GENERATED_FILE_KIND: Rule = BuiltInRules.rules()["generated"]
+
+  def __init__(self, name: str, parent_label: str,
+      maternal_target: TargetNode) -> None:
+    super().__init__(GeneratedFileNode.GENERATED_FILE_KIND, name, parent_label,
+                     None)
+    self.maternal_target: TargetNode = maternal_target
+
+  @staticmethod
+  def create_gen_file(label: str,
+      maternal_target: TargetNode) -> GeneratedFileNode:
+    pkg_and_name = label.split(":")
+    return GeneratedFileNode(pkg_and_name[1], pkg_and_name[0], maternal_target)

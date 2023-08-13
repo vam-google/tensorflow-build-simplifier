@@ -1,11 +1,14 @@
-from typing import Dict, cast
+from typing import Dict
+from typing import cast
 
-from buildcleaner.runner import BazelRunner
-from buildcleaner.runner import TargetsCollector
-from buildcleaner.runner import CollectedTargets
-from buildcleaner.graph import NodesTreeBuilder
+from buildcleaner.graph import PackageTreeBuilder
+from buildcleaner.node import ContainerNode
+from buildcleaner.node import RepositoryNode
+from buildcleaner.node import TargetNode
 from buildcleaner.parser import BazelBuildTargetsParser
-from buildcleaner.node import TargetNode, ContainerNode, RepositoryNode
+from buildcleaner.runner import BazelRunner
+from buildcleaner.runner import CollectedTargets
+from buildcleaner.runner import TargetsCollector
 from buildcleaner.transformer import RuleTransformer
 
 
@@ -23,7 +26,7 @@ class Build:
           f"Iterations: {targets.iterations}\n"
           f"Incremental Lengths: {targets.incremental_lengths}")
 
-    tree_builder: NodesTreeBuilder = NodesTreeBuilder()
+    tree_builder: PackageTreeBuilder = PackageTreeBuilder()
 
     self.package_nodes: Dict[
       str, ContainerNode] = tree_builder.build_package_tree(

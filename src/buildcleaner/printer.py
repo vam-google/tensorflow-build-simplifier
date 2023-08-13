@@ -1,9 +1,20 @@
-from typing import Union, Dict, List, Set, Tuple, Any, cast
-
-from buildcleaner.node import Function, Node, ContainerNode, TargetNode, \
-  FileNode, RepositoryNode, PackageNode
-from buildcleaner.graph import DgPkgBuilder
 from functools import cmp_to_key
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Set
+from typing import Tuple
+from typing import Union
+from typing import cast
+
+from buildcleaner.graph import DgPkgBuilder
+from buildcleaner.node import ContainerNode
+from buildcleaner.node import FileNode
+from buildcleaner.node import Function
+from buildcleaner.node import Node
+from buildcleaner.node import PackageNode
+from buildcleaner.node import RepositoryNode
+from buildcleaner.node import TargetNode
 
 
 class DebugTreePrinter:
@@ -109,10 +120,12 @@ class BuildTargetsPrinter:
 
     list_args_block: str = self._print_list_args(pkg_node.label,
                                                  node.label_list_args,
-                                                 node.string_list_args)
+                                                 node.string_list_args,
+                                                 node.out_label_list_args)
     string_args_block: str = self._print_string_args(pkg_node.label,
                                                      node.label_args,
-                                                     node.string_args)
+                                                     node.string_args,
+                                                     node.out_label_args)
     bool_args_block: str = self._print_bool_args(node.bool_args)
     map_args_block: str = self._print_map_args(node.str_str_map_args)
 
@@ -131,7 +144,8 @@ class BuildTargetsPrinter:
   def _print_function(self, pkg_node: PackageNode, func: Function) -> str:
     list_args_block: str = self._print_list_args(pkg_node.label,
                                                  func.label_list_args,
-                                                 func.string_list_args)
+                                                 func.string_list_args,
+                                                 {})
     function_str = f"""
 {func.kind}({list_args_block}
 )"""
@@ -140,7 +154,8 @@ class BuildTargetsPrinter:
 
   def _print_list_args(self, pkg_label: str,
       label_list_args: Dict[str, List[TargetNode]],
-      string_list_args: Dict[str, List[str]]) -> str:
+      string_list_args: Dict[str, List[str]],
+      out_label_list_args: Dict[str, List[TargetNode]]) -> str:
     list_args_block: str = ""
 
     label_list_args_s: Dict[str, List[str]] = {}
@@ -148,24 +163,31 @@ class BuildTargetsPrinter:
     for k, v_list in label_list_args.items():
       label_list_args_s[k] = [self._shorten_label(pkg_prefix, v) for v in
                               v_list]
-    for list_args in [label_list_args_s, string_list_args]:
-      list_args_strs: List[str] = []
-      for list_arg_name, list_arg_values in list_args.items():
-        if not list_arg_values:
-          continue
-        elif len(list_arg_values) == 1:
-          arg_str = f"    {list_arg_name} = [\"{list_arg_values[0]}\"],"
-        else:
-          list_arg_str_values = "\"" + "\",\n        \"".join(
-              sorted(list_arg_values)) + "\","
-          arg_str = f"""    {list_arg_name} = [
-        {list_arg_str_values}
-    ],"""
-        list_args_strs.append(arg_str)
-      list_args_block += "\n" + "\n".join(
-          list_args_strs) if list_args_strs else ""
+    for k, v_list in out_label_list_args.items():
+      label_list_args_s[k] = [self._shorten_label(pkg_prefix, v) for v in
+                              v_list]
 
-    return list_args_block
+    label_block: str = self._print_list_args_internal(label_list_args_s, True)
+    str_block: str = self._print_list_args_internal(string_list_args, False)
+
+    return label_block + str_block
+
+  def _print_list_args_internal(self, list_args: Dict[str, List[str]],
+      sort_vals: bool) -> str:
+    list_args_strs: List[str] = []
+    for list_arg_name, list_arg_values in list_args.items():
+      if not list_arg_values:
+        continue
+      elif len(list_arg_values) == 1:
+        arg_str = f"    {list_arg_name} = [\"{list_arg_values[0]}\"],"
+      else:
+        list_arg_str_values = "\"" + "\",\n        \"".join(
+            sorted(list_arg_values) if sort_vals else list_arg_values) + "\","
+        arg_str = f"""    {list_arg_name} = [
+      {list_arg_str_values}
+    ],"""
+      list_args_strs.append(arg_str)
+    return "\n" + "\n".join(list_args_strs) if list_args_strs else ""
 
   def _print_map_args(self, str_str_map_args: Dict[str, Dict[str, str]]) -> str:
     map_args_strs: List[str] = []
@@ -188,13 +210,17 @@ class BuildTargetsPrinter:
 
   def _print_string_args(self, pkg_label: str,
       label_args: Dict[str, TargetNode],
-      string_args: Dict[str, str]) -> str:
+      string_args: Dict[str, str],
+      out_label_args: Dict[str, TargetNode]) -> str:
     string_args_block: str = ""
     pkg_prefix: str = pkg_label + ":"
     label_args_s: Dict[str, str] = {k: self._shorten_label(pkg_prefix, v)
                                     for k, v in
                                     label_args.items()}
-    for string_args in [label_args_s, string_args]:
+    out_label_args_s: Dict[str, str] = {k: self._shorten_label(pkg_prefix, v)
+                                        for k, v in
+                                        out_label_args.items()}
+    for string_args in [label_args_s, out_label_args_s, string_args]:
       string_args_strs: List[str] = []
       for string_arg_name, string_arg_value in string_args.items():
         arg_str = f"    {string_arg_name} = \"{str(string_arg_value)}\","

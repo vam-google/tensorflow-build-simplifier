@@ -1,20 +1,24 @@
-from typing import Dict, Optional
+from typing import Dict
+from typing import Optional
+
 from buildcleaner.rule import Rule
 
 
 class TfRules:
   _RULES: Dict[str, Rule] = {
       "proto_gen": Rule(kind="proto_gen",
-                        label_list_args=["srcs", "deps", "outs"],
+                        label_list_args=["srcs", "deps"],
                         label_args=["protoc"],
                         string_list_args=["includes", "plugin_options"],
                         string_args=["plugin_language"],
                         bool_args=["gen_cc"],
+                        out_label_list_args=["outs"],
                         import_statement="load(\"@com_google_protobuf//:protobuf.bzl\", \"proto_gen\")"),
       "gentbl_rule": Rule(kind="gentbl_rule",
                           label_list_args=["deps", "td_srcs"],
-                          label_args=["tblgen", "td_file", "out"],
+                          label_args=["tblgen", "td_file"],
                           string_list_args=["includes", "opts"],
+                          out_label_args=["out"],
                           import_statement="load(\"@llvm-project//mlir:tblgen.bzl\", \"gentbl_rule\")"),
       "_generate_cc": Rule(kind="_generate_cc",
                            label_list_args=["srcs"],
@@ -32,8 +36,9 @@ class TfRules:
                          string_list_args=["includes"],
                          import_statement="load(\"@llvm-project//mlir:tblgen.bzl\", \"td_library\")"),
       "tf_gen_options_header": Rule(kind="tf_gen_options_header",
-                                    label_args=["template", "output_header"],
+                                    label_args=["template"],
                                     str_str_map_args=["build_settings"],
+                                    out_label_args=["output_header"],
                                     import_statement="load(\"//tensorflow:tensorflow.bzl\", \"tf_gen_options_header\")"),
       "_transitive_hdrs": Rule(kind="_transitive_hdrs",
                                label_list_args=["deps"]),

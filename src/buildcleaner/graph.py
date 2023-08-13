@@ -1,12 +1,23 @@
 import re
+from typing import Dict
+from typing import Iterable
+from typing import List
+from typing import Pattern
+from typing import Set
+from typing import Tuple
+from typing import cast
 
-from typing import Pattern, List, Dict, Iterable, Tuple, Set, cast
+from buildcleaner.node import ContainerNode
+from buildcleaner.node import FileNode
+from buildcleaner.node import GeneratedFileNode
+from buildcleaner.node import Node
+from buildcleaner.node import PackageNode
+from buildcleaner.node import RepositoryNode
+from buildcleaner.node import RootNode
+from buildcleaner.node import TargetNode
 
-from buildcleaner.node import Node, ContainerNode, TargetNode, RootNode, \
-  RepositoryNode, PackageNode, FileNode
 
-
-class NodesTreeBuilder:
+class PackageTreeBuilder:
   def __init__(self) -> None:
     self._label_splitter_regex: Pattern = re.compile(
         r"(?P<external>@?)(?P<repo>\w*)//(?P<package>[0-9a-zA-Z\-\._\@/]+)*:(?P<name>[0-9a-zA-Z\-\._\+/]+)$")
@@ -106,10 +117,16 @@ class DagBuilder:
     reverse_visited.setdefault(from_target, set())
 
     for to_target in from_target.get_targets():
-      if not to_target.is_external() and not isinstance(to_target, FileNode):
-        visited[from_target].add(to_target)
-        reverse_visited.setdefault(to_target, set()).add(from_target)
-        self._dfs_graph_internal(to_target, visited, reverse_visited, path)
+      if not to_target.is_external():
+        actual_to_target: TargetNode = to_target
+        if isinstance(to_target, GeneratedFileNode):
+          actual_to_target = cast(GeneratedFileNode, to_target).maternal_target
+        if not isinstance(actual_to_target, FileNode):
+          visited[from_target].add(actual_to_target)
+          reverse_visited.setdefault(actual_to_target, set()).add(from_target)
+          self._dfs_graph_internal(actual_to_target, visited, reverse_visited,
+                                   path)
+
     del path[from_label]
 
 

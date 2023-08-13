@@ -1,4 +1,5 @@
-from typing import Sequence, Dict
+from typing import Dict
+from typing import Sequence
 
 
 class Rule:
@@ -9,6 +10,8 @@ class Rule:
       string_args: Sequence[str] = (),
       bool_args: Sequence[str] = (),
       str_str_map_args: Sequence[str] = (),
+      out_label_list_args: Sequence[str] = (),
+      out_label_args: Sequence[str] = (),
       import_statement: str = "") -> None:
     self.kind: str = kind
     self.label_list_args: Sequence[str] = label_list_args
@@ -17,6 +20,8 @@ class Rule:
     self.string_args: Sequence[str] = string_args
     self.bool_args: Sequence[str] = bool_args
     self.str_str_map_args: Sequence[str] = str_str_map_args
+    self.out_label_list_args: Sequence[str] = out_label_list_args
+    self.out_label_args: Sequence[str] = out_label_args
     self.import_statement: str = import_statement
 
   def __str__(self) -> str:
@@ -33,19 +38,21 @@ class Rule:
   def __hash__(self) -> int:
     return self.kind.__hash__()
 
+
 class BuiltInRules:
   _RULES: Dict[str, Rule] = {
       "cc_library": Rule(kind="cc_library",
                          label_list_args=["srcs", "hdrs", "deps",
                                           "textual_hdrs"],
-                         string_list_args=["copts", "linkopts", "features", "tags",
+                         string_list_args=["copts", "linkopts", "features",
+                                           "tags",
                                            "includes"],
                          string_args=["strip_include_prefix"],
                          bool_args=["linkstatic", "alwayslink"]),
       "filegroup": Rule(kind="filegroup", label_list_args=["srcs"]),
       "alias": Rule(kind="alias", label_args=["actual"]),
-      "genrule": Rule(kind="genrule", label_list_args=["srcs", "tools", "outs"],
-                      string_args=["cmd"]),
+      "genrule": Rule(kind="genrule", label_list_args=["srcs", "tools"],
+                      string_args=["cmd"], out_label_list_args=["outs"]),
       "cc_binary": Rule(kind="cc_binary",
                         label_list_args=["srcs", "deps"],
                         string_list_args=["copts", "linkopts"]),
@@ -74,7 +81,6 @@ class BuiltInRules:
   @staticmethod
   def rules() -> Dict[str, Rule]:
     return BuiltInRules._RULES
-
 
 
 class PackageFunctions:

@@ -1,11 +1,12 @@
-from abc import abstractmethod
-from typing import List, Dict, Set, Optional, cast
+from typing import Dict
+from typing import List
+from typing import Set
+from typing import cast
 
 from buildcleaner.node import ContainerNode
 from buildcleaner.node import FileNode
 from buildcleaner.node import Function
 from buildcleaner.node import Node
-
 from buildcleaner.node import PackageNode
 from buildcleaner.node import TargetNode
 from buildcleaner.rule import PackageFunctions
@@ -44,7 +45,7 @@ class ExportFilesTransformer(RuleTransformer):
           PackageFunctions.functions()["exports_files"])
       # Export all exported files with public visibility for now
       # refaine it later.
-      for source_file in pkg_node.get_targets(kind=FileNode.source_file_kind):
+      for source_file in pkg_node.get_targets(kind=FileNode.SOURCE_FILE_KIND):
         if str(source_file) in file_to_packages:
           exports_files_prop.label_list_args.setdefault("srcs", []).append(
               source_file)
@@ -63,7 +64,7 @@ class ExportFilesTransformer(RuleTransformer):
         self._collect_files_referenced_from_other_pkgs(child, file_to_packages)
       elif type(child) == TargetNode and isinstance(cont_node, PackageNode):
         target_child = cast(TargetNode, child)
-        for file_dep in target_child.get_targets(FileNode.source_file_kind):
+        for file_dep in target_child.get_targets(FileNode.SOURCE_FILE_KIND):
           file_dep_parent_label: str = file_dep.get_parent_label()
           if file_dep_parent_label != str(cont_node):
             file_to_packages.setdefault(str(file_dep), set()).add(
