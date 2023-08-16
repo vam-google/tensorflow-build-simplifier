@@ -177,6 +177,8 @@ class DgPkgBuilder(DagBuilder):
       for direct_node in edge:
         direct_pkg: PackageNode = cast(PackageNode, tree_nodes[
           direct_node.get_parent_label()])
-        cur_pkg_edges.add(direct_pkg)
+        # do not put reflexive edges
+        if direct_pkg != the_pkg:
+          cur_pkg_edges.add(direct_pkg)
 
     return pkg_edges

@@ -91,6 +91,18 @@ class GenerateCcTransformer(RuleTransformer):
         target_node.bool_args["well_known_protos"] = False
 
 
+class PackageCcLibraryMergeTransformer(RuleTransformer):
+  def __init__(self, root_target: TargetNode) -> None:
+    self._root_target: TargetNode = root_target
+    self._cc_library: Rule = BuiltInRules.rules()["cc_library"]
+    self._generated: Rule = BuiltInRules.rules()["generated"]
+    self._filegroup: Rule = BuiltInRules.rules()["filegroup"]
+    self._alias: Rule = BuiltInRules.rules()["alias"]
+    self._cc_shared_library: Rule = BuiltInRules.rules()["cc_shared_library"]
+
+    self._generate_cc: Rule = TfRules.rules()["generate_cc"]
+
+
 class TotalCcLibraryMergeTransformer(RuleTransformer):
   def __init__(self, root_target: TargetNode) -> None:
     self._root_target: TargetNode = root_target
@@ -99,6 +111,8 @@ class TotalCcLibraryMergeTransformer(RuleTransformer):
     self._filegroup: Rule = BuiltInRules.rules()["filegroup"]
     self._alias: Rule = BuiltInRules.rules()["alias"]
     self._cc_shared_library: Rule = BuiltInRules.rules()["cc_shared_library"]
+
+    self._generate_cc: Rule = TfRules.rules()["generate_cc"]
 
   def transform(self, node: Node) -> None:
     root_node_package: PackageNode = cast(PackageNode, node)
@@ -153,7 +167,7 @@ class TotalCcLibraryMergeTransformer(RuleTransformer):
           next_targets.put_nowait(alias_actual)
         continue
 
-      if target.kind != self._cc_library and target.kind != self._filegroup:
+      if target.kind not in [self._cc_library, self._filegroup]:
         continue
 
       for arg_name in agg_label_list_args:
@@ -162,17 +176,21 @@ class TotalCcLibraryMergeTransformer(RuleTransformer):
         if not arg_label_val:
           continue
         for arg_label_item in arg_label_val:
-          if isinstance(arg_label_item,
-                        FileNode) or arg_label_item.kind == self._generated or arg_label_item.is_external():
+          if self._is_src_item(arg_label_item):
             actual_arg_name: str = arg_name
-            if arg_name == "hdrs":
-              if "." in arg_label_item.name and first_level_count < 0:
-                actual_arg_name = "srcs"
+            if actual_arg_name == "textual_hdrs":
+              actual_arg_name = "hdrs"
+            if actual_arg_name == "srcs" and arg_label_item in \
+                agg_label_list_args["hdrs"]:
+              continue
+            if actual_arg_name == "hdrs" and arg_label_item in \
+                agg_label_list_args["srcs"]:
+              agg_label_list_args["srcs"].remove(arg_label_item)
+
             agg_label_list_args[actual_arg_name].add(arg_label_item)
-          else:
-            if arg_label_item not in visited:
-              visited.add(arg_label_item)
-              next_targets.put_nowait(arg_label_item)
+          elif arg_label_item not in visited:
+            visited.add(arg_label_item)
+            next_targets.put_nowait(arg_label_item)
 
       for arg_name in agg_string_list_args:
         arg_str_val: Optional[List[str]] = target.string_list_args.get(arg_name)
@@ -181,6 +199,10 @@ class TotalCcLibraryMergeTransformer(RuleTransformer):
         agg_string_list_args.setdefault(arg_name, set()).update(arg_str_val)
 
     return agg_label_list_args, agg_string_list_args
+
+  def _is_src_item(self, arg_label_item) -> bool:
+    return isinstance(arg_label_item, FileNode) or arg_label_item.kind in [
+        self._generated, self._generate_cc] or arg_label_item.is_external()
 
 
 class DebugOptsCollector(RuleTransformer):

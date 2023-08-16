@@ -4,6 +4,7 @@ from typing import Dict
 from typing import List
 from typing import Set
 from typing import Tuple
+from typing import Type
 from typing import Union
 from typing import cast
 
@@ -11,13 +12,64 @@ from buildcleaner.graph import DgPkgBuilder
 from buildcleaner.node import ContainerNode
 from buildcleaner.node import FileNode
 from buildcleaner.node import Function
+from buildcleaner.node import GeneratedFileNode
 from buildcleaner.node import Node
 from buildcleaner.node import PackageNode
 from buildcleaner.node import RepositoryNode
+from buildcleaner.node import RootNode
 from buildcleaner.node import TargetNode
 
 
+class NodeComparators:
+  _TYPE_ORDER: Dict[Type, int] = {
+      FileNode: 1,
+      GeneratedFileNode: 2,
+      TargetNode: 3,
+      PackageNode: 4,
+      RepositoryNode: 5,
+      RootNode: 6,
+  }
+
+  def __init__(self) -> None:
+    self.targets_in_container_key = cmp_to_key(self._compare_nodes_in_container)
+
+  def _compare_nodes_in_container(self, left: Node, right: Node) -> int:
+    # if left.generator_function != right.generator_function:
+    #   return self._cmp_objs(left.generator_function, right.generator_function)
+
+    if isinstance(left, ContainerNode):
+      if not isinstance(right, ContainerNode):
+        self._compare_types(left, right)
+    else:
+      if not isinstance(right, TargetNode):
+        self._compare_types(left, right)
+      else:
+        left_target = cast(TargetNode, left)
+        right_target = cast(TargetNode, right)
+        if left_target.generator_name != right_target.generator_name:
+          return self._compare_objects(left_target.generator_name,
+                                       right_target.generator_name)
+
+    if left.kind != right.kind:
+      return self._compare_objects(left.kind.kind, right.kind.kind)
+    return self._compare_objects(left.label, right.label)
+
+  def _compare_objects(self, left: Any, right: Any) -> int:
+    if left < right:
+      return -1
+    if left > right:
+      return 1
+    return 0
+
+  def _compare_types(self, left: Node, right: Node):
+    return self._compare_objects(NodeComparators._TYPE_ORDER[type(left)],
+                                 NodeComparators._TYPE_ORDER[type(right)])
+
+
 class DebugTreePrinter:
+  def __init__(self) -> None:
+    self._targets_in_container_key = NodeComparators().targets_in_container_key
+
   def print_nodes_tree(self, repo_root, print_files: bool = True,
       print_targets: bool = True, indent: str = "    ",
       return_string: bool = False) -> Union[str, List[str]]:
@@ -56,20 +108,24 @@ class DebugTreePrinter:
         lines.append(f"{indent * depth}{target_kind}{str(node)}")
 
     if isinstance(node, ContainerNode):
-      for _, v in cast(ContainerNode, node).children.items():
+      container_node: ContainerNode = cast(ContainerNode, node)
+      children: List[Node] = sorted(container_node.children.values(),
+                                    key=self._targets_in_container_key)
+
+      for v in children:
         self._print(v, lines, depth + 1, print_files, print_targets, indent)
 
 
 class BuildTargetsPrinter:
   def __init__(self) -> None:
-    self._targets_cmp_key = cmp_to_key(self._targets_in_package_comparator)
+    self._targets_in_container_key = NodeComparators().targets_in_container_key
 
   def print_build_file(self, pkg_node: PackageNode) -> str:
     nodes: List[TargetNode] = []
     for t in pkg_node.get_targets():
       if type(t) == TargetNode:
         nodes.append(t)
-    nodes.sort(key=self._targets_cmp_key)
+    nodes.sort(key=self._targets_in_container_key)
 
     import_statements: Set[str] = set()
     targets: List[str] = []
@@ -95,23 +151,6 @@ class BuildTargetsPrinter:
       file_blocks.append("\n".join(targets))
 
     return "" if len(file_blocks) == 1 else "\n".join(file_blocks)
-
-  def _targets_in_package_comparator(self, left: TargetNode,
-      right: TargetNode) -> int:
-    # if left.generator_function != right.generator_function:
-    #   return self._cmp_objs(left.generator_function, right.generator_function)
-    if left.generator_name != right.generator_name:
-      return self._cmp_objs(left.generator_name, right.generator_name)
-    if left.kind != right.kind:
-      return self._cmp_objs(left.kind.kind, right.kind.kind)
-    return self._cmp_objs(left.label, right.label)
-
-  def _cmp_objs(self, left: Any, right: Any) -> int:
-    if left < right:
-      return -1
-    if left > right:
-      return 1
-    return 0
 
   def _print_target(self, pkg_node: PackageNode,
       node: TargetNode) -> List[str]:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import abstractmethod
 from typing import Dict
 from typing import Iterable
 from typing import List
@@ -59,6 +60,7 @@ class Node:
 
 
 class ContainerNode(Node):
+  @abstractmethod
   def __init__(self, kind: Rule, name: str, label: str,
       copy_node: Optional[ContainerNode]) -> None:
     super().__init__(kind, name, label, copy_node)
