@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from typing import Dict
 from typing import List
 from typing import Set
@@ -13,7 +14,8 @@ from buildcleaner.rule import PackageFunctions
 
 
 class RuleTransformer:
-  def transform(self, node: Node) -> None:
+  @abstractmethod
+  def transform(self, node: Node) -> List[TargetNode]:
     pass
 
 
@@ -21,14 +23,17 @@ class ChainTransformer(RuleTransformer):
   def __init__(self, transformers_chain: List[RuleTransformer]) -> None:
     self.transformers_chain: List[RuleTransformer] = list(transformers_chain)
 
-  def transform(self, node: Node) -> None:
+  def transform(self, node: Node) -> List[TargetNode]:
+    rv: List[TargetNode] = []
     for transformer in self.transformers_chain:
-      transformer.transform(node)
+      rv.extend(transformer.transform(node))
+    return rv
 
 
 class ExportFilesTransformer(RuleTransformer):
-  def transform(self, node: Node) -> None:
+  def transform(self, node: Node) -> List[TargetNode]:
     self._populate_export_files(cast(ContainerNode, node))
+    return []
 
   def _populate_export_files(self, root: ContainerNode):
     file_to_packages: Dict[str, Set[PackageNode]] = {}

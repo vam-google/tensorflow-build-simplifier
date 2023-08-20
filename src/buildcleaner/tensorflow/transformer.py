@@ -1,5 +1,6 @@
 from queue import Queue
 from typing import Dict
+from typing import Iterable
 from typing import List
 from typing import Optional
 from typing import Set
@@ -25,8 +26,9 @@ class CcHeaderOnlyLibraryTransformer(RuleTransformer):
     self._transitive_parameters_library: Rule = TfRules.rules()[
       "_transitive_parameters_library"]
 
-  def transform(self, node: Node) -> None:
+  def transform(self, node: Node) -> List[TargetNode]:
     self._merge_cc_header_only_library(cast(ContainerNode, node))
+    return []
 
   def _merge_cc_header_only_library(self, node: ContainerNode) -> None:
     for child in node.get_containers():
@@ -71,8 +73,9 @@ class GenerateCcTransformer(RuleTransformer):
     self._generate_cc: Rule = TfRules.rules()["generate_cc"]
     self._private_generate_cc: Rule = TfRules.rules()["_generate_cc"]
 
-  def transform(self, node: Node) -> None:
+  def transform(self, node: Node) -> List[TargetNode]:
     self._fix_generate_cc_kind(node)
+    return []
 
   def _fix_generate_cc_kind(self, node: Node) -> None:
     if isinstance(node, ContainerNode):
@@ -103,7 +106,7 @@ class PackageCcLibraryMergeTransformer(RuleTransformer):
     self._generate_cc: Rule = TfRules.rules()["generate_cc"]
 
 
-class TotalCcLibraryMergeTransformer(RuleTransformer):
+class CcLibraryMerger(RuleTransformer):
   def __init__(self, root_target: TargetNode) -> None:
     self._root_target: TargetNode = root_target
     self._cc_library: Rule = BuiltInRules.rules()["cc_library"]
@@ -114,11 +117,12 @@ class TotalCcLibraryMergeTransformer(RuleTransformer):
 
     self._generate_cc: Rule = TfRules.rules()["generate_cc"]
 
-  def transform(self, node: Node) -> None:
+  def transform(self, node: Node) -> List[TargetNode]:
     root_node_package: PackageNode = cast(PackageNode, node)
 
     next_targets: 'Queue[TargetNode]' = Queue()
-    roots: List[TargetNode] = self._root_target.label_list_args["roots"]
+    roots_arg_name: str = "roots" if self._root_target.kind == self._cc_shared_library else "deps"
+    roots: List[TargetNode] = self._root_target.label_list_args[roots_arg_name]
 
     for root in roots:
       next_targets.put_nowait(root)
@@ -136,11 +140,17 @@ class TotalCcLibraryMergeTransformer(RuleTransformer):
       agg_cc_library.label_list_args.setdefault(arg_name, []).extend(
           arg_label_val)
 
+    if "copts" in agg_string_list_args:
+      copts: Set[str] = agg_string_list_args["copts"]
+      if "-fexceptions" in copts and "-fno-exceptions" in copts:
+        copts.remove("-fno-exceptions")
+
     for arg_name, arg_str_val in agg_string_list_args.items():
       agg_cc_library.string_list_args.setdefault(arg_name, []).extend(
           arg_str_val)
 
     root_node_package.children[str(agg_cc_library)] = agg_cc_library
+    return [agg_cc_library]
 
   def _bfs_cpp_info_deps(self,
       next_targets: 'Queue[TargetNode]') -> Tuple[
@@ -155,6 +165,7 @@ class TotalCcLibraryMergeTransformer(RuleTransformer):
       agg_string_list_args[arg_name] = set()
 
     visited: Set[TargetNode] = set()
+    expanded_filegroups: Dict[TargetNode, Set[TargetNode]] = {}
     first_level_count: int = next_targets.qsize()
 
     while not next_targets.empty():
@@ -167,30 +178,38 @@ class TotalCcLibraryMergeTransformer(RuleTransformer):
           next_targets.put_nowait(alias_actual)
         continue
 
-      if target.kind not in [self._cc_library, self._filegroup]:
+      if target.kind not in [self._cc_library]:
         continue
 
       for arg_name in agg_label_list_args:
-        arg_label_val: Optional[List[TargetNode]] = target.label_list_args.get(
+        arg_label_vals: Optional[List[TargetNode]] = target.label_list_args.get(
             arg_name)
-        if not arg_label_val:
+        if not arg_label_vals:
           continue
-        for arg_label_item in arg_label_val:
-          if self._is_src_item(arg_label_item):
+
+        for arg_label_item in arg_label_vals:
+          src_items: Iterable[TargetNode] = self._expand_source_target(
+              arg_label_item, expanded_filegroups)
+          if not src_items:
+            if arg_label_item not in visited:
+              visited.add(arg_label_item)
+              next_targets.put_nowait(arg_label_item)
+            continue
+
+          for src_item in src_items:
             actual_arg_name: str = arg_name
             if actual_arg_name == "textual_hdrs":
-              actual_arg_name = "hdrs"
-            if actual_arg_name == "srcs" and arg_label_item in \
-                agg_label_list_args["hdrs"]:
-              continue
-            if actual_arg_name == "hdrs" and arg_label_item in \
-                agg_label_list_args["srcs"]:
-              agg_label_list_args["srcs"].remove(arg_label_item)
+              if not src_item.name.endswith(".md"):
+                actual_arg_name = "hdrs"
+            if actual_arg_name == "srcs":
+              if src_item in agg_label_list_args[
+                "hdrs"] and src_item.kind != self._generate_cc:
+                continue
+            if actual_arg_name == "hdrs":
+              if src_item in agg_label_list_args["srcs"]:
+                agg_label_list_args["srcs"].remove(src_item)
 
-            agg_label_list_args[actual_arg_name].add(arg_label_item)
-          elif arg_label_item not in visited:
-            visited.add(arg_label_item)
-            next_targets.put_nowait(arg_label_item)
+            agg_label_list_args[actual_arg_name].add(src_item)
 
       for arg_name in agg_string_list_args:
         arg_str_val: Optional[List[str]] = target.string_list_args.get(arg_name)
@@ -202,7 +221,33 @@ class TotalCcLibraryMergeTransformer(RuleTransformer):
 
   def _is_src_item(self, arg_label_item) -> bool:
     return isinstance(arg_label_item, FileNode) or arg_label_item.kind in [
-        self._generated, self._generate_cc] or arg_label_item.is_external()
+        self._generated,
+        self._generate_cc] or arg_label_item.is_external() or "strip_include_prefix" in arg_label_item.string_args
+
+  def _expand_source_target(self, source_target: TargetNode,
+      expanded_filegroups: Dict[TargetNode, Set[TargetNode]],
+      accept_targets: bool = True) -> Set[TargetNode]:
+    expanded_files: Set[TargetNode] = set()
+    if self._is_src_item(source_target):
+      expanded_files.add(source_target)
+      return expanded_files
+    if source_target.kind != self._filegroup:
+      if accept_targets:
+        return expanded_files
+      raise ValueError(
+          f"Wrong filegoup target kind: {source_target.kind}, name: {source_target}")
+
+    if source_target in expanded_filegroups:
+      return expanded_filegroups[source_target]
+
+    srcs: Optional[List[TargetNode]] = source_target.label_list_args.get("srcs")
+    if srcs:
+      for src in source_target.label_list_args["srcs"]:
+        expanded_files.update(
+            self._expand_source_target(src, expanded_filegroups, False))
+
+    expanded_filegroups[source_target] = expanded_files
+    return expanded_files
 
 
 class DebugOptsCollector(RuleTransformer):
@@ -211,10 +256,11 @@ class DebugOptsCollector(RuleTransformer):
     self._str_list_args: Dict[str, Set[str]] = {"copts": set(),
                                                 "linkopts": set()}
 
-  def transform(self, node: Node) -> None:
+  def transform(self, node: Node) -> List[TargetNode]:
     container_node: ContainerNode = cast(ContainerNode, node)
     # str_list_args: Dict[str, Set[str]] = {"copts": set(), "linkopts": set()}
     self._collect_args(container_node, self._str_list_args)
+    return []
 
   def _collect_args(self, node: ContainerNode,
       str_list_args: Dict[str, Set[str]]) -> None:
@@ -228,3 +274,46 @@ class DebugOptsCollector(RuleTransformer):
               str_arg_name)
           if arg_val is not None:
             str_arg_vals.update(arg_val)
+
+# class PackageCcLibraryMerger(RuleTransformer):
+#   def __init__(self) -> None:
+#     self._cc_library: Rule = BuiltInRules.rules()["cc_library"]
+#
+#   def transform(self, node: Node) -> List[TargetNode]:
+#     pkg_node: PackageNode = cast(PackageNode, node)
+#
+#     agg_cc_deps: Dict[str, Set[TargetNode]] = {}
+#
+#     for target in pkg_node.get_targets():
+#       if target.kind != self._cc_library:
+#         continue
+#
+#       strip_include_prefix: Optional[str] = target.string_args.get(
+#           "strip_include_prefix")
+#       if strip_include_prefix:
+#         agg_cc_deps.setdefault(strip_include_prefix, set()).add(target)
+#
+#     tmp_cc_libraries: List[TargetNode] = []
+#     for strip_include_prefix, agg_deps in agg_cc_deps.items():
+#       suffix: str = strip_include_prefix.replace("/", "_").replace(".", "dot")
+#       agg_cc_library = TargetNode(self._cc_library,
+#                                   f"aggregated_{pkg_node.name}__{suffix}",
+#                                   str(pkg_node))
+#       agg_cc_library.label_list_args["deps"] = list(agg_deps)
+#       agg_cc_library.string_args["strip_include_prefix"] = strip_include_prefix
+#       tmp_cc_libraries.append(agg_cc_library)
+#
+#     # for agg_cc_lib in agg_cc_libraries:
+#     #   pkg_node.children[str(agg_cc_lib)] = agg_cc_lib
+#
+#     agg_cc_libraries: List[TargetNode] = []
+#     for tmp_cc_lib in tmp_cc_libraries:
+#       agg_cc_lib: TargetNode = CcLibraryMerger(tmp_cc_lib).transform(pkg_node)[
+#         0]
+#       agg_cc_lib.string_args.update(tmp_cc_lib.string_args)
+#       agg_cc_libraries.append(agg_cc_lib)
+#
+#     # for agg_cc_lib in agg_cc_libraries:
+#     #   pkg_node.children[str(agg_cc_lib)] = agg_cc_lib
+#
+#     return agg_cc_libraries

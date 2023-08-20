@@ -30,8 +30,9 @@ class NodeComparators:
       RootNode: 6,
   }
 
-  def __init__(self) -> None:
+  def __init__(self, group_by_generator_name: bool) -> None:
     self.targets_in_container_key = cmp_to_key(self._compare_nodes_in_container)
+    self._group_by_generator_name: bool = group_by_generator_name
 
   def _compare_nodes_in_container(self, left: Node, right: Node) -> int:
     # if left.generator_function != right.generator_function:
@@ -43,7 +44,7 @@ class NodeComparators:
     else:
       if not isinstance(right, TargetNode):
         self._compare_types(left, right)
-      else:
+      elif self._group_by_generator_name:
         left_target = cast(TargetNode, left)
         right_target = cast(TargetNode, right)
         if left_target.generator_name != right_target.generator_name:
@@ -68,7 +69,8 @@ class NodeComparators:
 
 class DebugTreePrinter:
   def __init__(self) -> None:
-    self._targets_in_container_key = NodeComparators().targets_in_container_key
+    self._targets_in_container_key = NodeComparators(
+        False).targets_in_container_key
 
   def print_nodes_tree(self, repo_root, print_files: bool = True,
       print_targets: bool = True, indent: str = "    ",
@@ -118,7 +120,8 @@ class DebugTreePrinter:
 
 class BuildTargetsPrinter:
   def __init__(self) -> None:
-    self._targets_in_container_key = NodeComparators().targets_in_container_key
+    self._targets_in_container_key = NodeComparators(
+        True).targets_in_container_key
 
   def print_build_file(self, pkg_node: PackageNode) -> str:
     nodes: List[TargetNode] = []
@@ -172,8 +175,7 @@ class BuildTargetsPrinter:
     if node.generator_name:
       generator_info = f"\n# generator_function = {node.generator_function}\n# generator_name = {node.generator_name}"
 
-    target = f"""
-# {node}{generator_info}
+    target = f"""{generator_info}
 {node.kind}(
     name = "{node.name}",{list_args_block}{string_args_block}{bool_args_block}{map_args_block}
     visibility = ["//visibility:public"],

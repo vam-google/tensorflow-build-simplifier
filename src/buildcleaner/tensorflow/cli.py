@@ -10,9 +10,9 @@ class TfBuildCleanerCli(BuildCleanerCli):
   def __init__(self, cli_args: List[str]) -> None:
     super().__init__(cli_args)
 
-  def generate_build(self, root_target: str, bazel_config: str,
-      prefix_path: str) -> Build:
-    return TfBuild(root_target, bazel_config, prefix_path)
+  def generate_build(self) -> Build:
+    return TfBuild(self._root_target, self._bazel_config, self._prefix_path,
+                   self._merged_targets)
 
 
 if __name__ == '__main__':

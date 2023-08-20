@@ -29,8 +29,11 @@ class BuildCleanerCli:
     self._debug_build: bool = False
     self._debug_nodes_by_kind: bool = False
     self._debug_tree: bool = False
+    self._merged_targets: List[str] = []
 
     for cli_arg in cli_args:
+      arg_name: str
+      arg_val: str
       arg_name, arg_val = cli_arg.split("=", maxsplit=2)
       if arg_name == "--root_target":
         self._root_target = arg_val
@@ -52,13 +55,14 @@ class BuildCleanerCli:
         self._debug_nodes_by_kind = bool(arg_val)
       elif arg_name == "--debug_tree":
         self._debug_tree = bool(arg_val)
+      elif arg_name == "--merged_targets":
+        self._merged_targets = arg_val.split(",")
 
   def main(self) -> None:
     start: float = time.time()
 
     print("> Parsing Build Graph ...")
-    build: Build = self.generate_build(self._root_target, self._bazel_config,
-                                       self._prefix_path)
+    build: Build = self.generate_build()
 
     dag_builder: DgPkgBuilder = DgPkgBuilder(build.input_target,
                                              build.package_nodes)
@@ -82,8 +86,7 @@ class BuildCleanerCli:
     print(f"Total Time: {end - start}")
 
   @abstractmethod
-  def generate_build(self, root_target: str, bazel_config: str,
-      prefix_path: str) -> Build:
+  def generate_build(self) -> Build:
     pass
 
   def _generate_build_files(self, repo: RepositoryNode,
