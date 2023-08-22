@@ -175,7 +175,8 @@ class BuildTargetsPrinter:
     if node.generator_name:
       generator_info = f"\n# generator_function = {node.generator_function}\n# generator_name = {node.generator_name}"
 
-    target = f"""{generator_info}
+    target = f"""
+# {node}{generator_info}
 {node.kind}(
     name = "{node.name}",{list_args_block}{string_args_block}{bool_args_block}{map_args_block}
     visibility = ["//visibility:public"],
