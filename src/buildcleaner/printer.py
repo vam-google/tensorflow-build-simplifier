@@ -72,7 +72,7 @@ class DebugTreePrinter:
     self._targets_in_container_key = NodeComparators(
         False).targets_in_container_key
 
-  def print_nodes_tree(self, repo_root, print_files: bool = True,
+  def print_nodes_tree(self, repo_root: RootNode, print_files: bool = True,
       print_targets: bool = True, indent: str = "    ",
       return_string: bool = False) -> Union[str, List[str]]:
     lines: List[str] = []

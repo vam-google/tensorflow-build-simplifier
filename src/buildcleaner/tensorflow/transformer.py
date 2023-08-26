@@ -5,12 +5,14 @@ from typing import List
 from typing import Optional
 from typing import Set
 from typing import Tuple
+from typing import Type
 from typing import cast
 
+from buildcleaner.config import MergedTargetsConfig
 from buildcleaner.node import ContainerNode
 from buildcleaner.node import FileNode
 from buildcleaner.node import Node
-from buildcleaner.node import PackageNode
+from buildcleaner.node import RepositoryNode
 from buildcleaner.node import TargetNode
 from buildcleaner.rule import BuiltInRules
 from buildcleaner.rule import Rule
@@ -26,8 +28,8 @@ class CcHeaderOnlyLibraryTransformer(RuleTransformer):
     self._transitive_parameters_library: Rule = TfRules.rules()[
       "_transitive_parameters_library"]
 
-  def transform(self, node: Node) -> List[TargetNode]:
-    self._merge_cc_header_only_library(cast(ContainerNode, node))
+  def transform(self, repo_root: RepositoryNode) -> List[TargetNode]:
+    self._merge_cc_header_only_library(repo_root)
     return []
 
   def _merge_cc_header_only_library(self, node: ContainerNode) -> None:
@@ -52,8 +54,8 @@ class CcHeaderOnlyLibraryTransformer(RuleTransformer):
       parameters_node = transitive_parameters[i]
       cc_node = cc_library[i]
 
-      new_node = TargetNode(self._cc_header_only_library,
-                            cc_node.name, node.label, cc_node)
+      new_node = cc_node.duplicate(self._cc_header_only_library, "", "")
+
       for j in range(len(new_node.label_list_args["deps"])):
         if str(new_node.label_list_args["deps"][j]) == str(parameters_node):
           new_node.label_list_args["deps"].pop(j)
@@ -73,8 +75,8 @@ class GenerateCcTransformer(RuleTransformer):
     self._generate_cc: Rule = TfRules.rules()["generate_cc"]
     self._private_generate_cc: Rule = TfRules.rules()["_generate_cc"]
 
-  def transform(self, node: Node) -> List[TargetNode]:
-    self._fix_generate_cc_kind(node)
+  def transform(self, repo_root: RepositoryNode) -> List[TargetNode]:
+    self._fix_generate_cc_kind(repo_root)
     return []
 
   def _fix_generate_cc_kind(self, node: Node) -> None:
@@ -94,35 +96,25 @@ class GenerateCcTransformer(RuleTransformer):
         target_node.bool_args["well_known_protos"] = False
 
 
-class PackageCcLibraryMergeTransformer(RuleTransformer):
-  def __init__(self, root_target: TargetNode) -> None:
-    self._root_target: TargetNode = root_target
-    self._cc_library: Rule = BuiltInRules.rules()["cc_library"]
-    self._generated: Rule = BuiltInRules.rules()["generated"]
-    self._filegroup: Rule = BuiltInRules.rules()["filegroup"]
-    self._alias: Rule = BuiltInRules.rules()["alias"]
-    self._cc_shared_library: Rule = BuiltInRules.rules()["cc_shared_library"]
-
-    self._generate_cc: Rule = TfRules.rules()["generate_cc"]
-
-
 class CcLibraryMerger(RuleTransformer):
-  def __init__(self, root_target: TargetNode) -> None:
-    self._root_target: TargetNode = root_target
+  def __init__(self, root_label: str, new_target_prefix: str,
+      insert_new_targets: bool = True) -> None:
+    self._root_label: str = root_label
     self._cc_library: Rule = BuiltInRules.rules()["cc_library"]
     self._generated: Rule = BuiltInRules.rules()["generated"]
     self._filegroup: Rule = BuiltInRules.rules()["filegroup"]
     self._alias: Rule = BuiltInRules.rules()["alias"]
-    self._cc_shared_library: Rule = BuiltInRules.rules()["cc_shared_library"]
-
     self._generate_cc: Rule = TfRules.rules()["generate_cc"]
 
-  def transform(self, node: Node) -> List[TargetNode]:
-    root_node_package: PackageNode = cast(PackageNode, node)
+    self._new_target_prefix = new_target_prefix
+    self._insert_new_targets: bool = insert_new_targets
+
+  def transform(self, repo_root: RepositoryNode) -> List[TargetNode]:
+    root_target: TargetNode = cast(TargetNode, repo_root[self._root_label])
 
     next_targets: 'Queue[TargetNode]' = Queue()
-    roots_arg_name: str = "roots" if self._root_target.kind == self._cc_shared_library else "deps"
-    roots: List[TargetNode] = self._root_target.label_list_args[roots_arg_name]
+
+    roots: List[TargetNode] = self._get_root_deps(root_target)
 
     for root in roots:
       next_targets.put_nowait(root)
@@ -133,8 +125,8 @@ class CcLibraryMerger(RuleTransformer):
         next_targets)
 
     agg_cc_library: TargetNode = TargetNode(self._cc_library,
-                                            f"aggregated_{self._root_target.name}",
-                                            self._root_target.get_parent_label())
+                                            f"{self._new_target_prefix}{root_target.name}",
+                                            root_target.get_parent_label())
 
     for arg_name, arg_label_val in agg_label_list_args.items():
       agg_cc_library.label_list_args.setdefault(arg_name, []).extend(
@@ -149,8 +141,12 @@ class CcLibraryMerger(RuleTransformer):
       agg_cc_library.string_list_args.setdefault(arg_name, []).extend(
           arg_str_val)
 
-    root_node_package.children[str(agg_cc_library)] = agg_cc_library
+    if self._insert_new_targets:
+      repo_root[str(agg_cc_library)] = agg_cc_library
     return [agg_cc_library]
+
+  def _get_root_deps(self, root_target: TargetNode):
+    return root_target.label_list_args["deps"]
 
   def _bfs_cpp_info_deps(self,
       next_targets: 'Queue[TargetNode]') -> Tuple[
@@ -250,70 +246,60 @@ class CcLibraryMerger(RuleTransformer):
     return expanded_files
 
 
-class DebugOptsCollector(RuleTransformer):
-  def __init__(self) -> None:
-    self._cc_library: Rule = BuiltInRules.rules()["cc_library"]
-    self._str_list_args: Dict[str, Set[str]] = {"copts": set(),
-                                                "linkopts": set()}
+class CcSharedLibraryMerger(CcLibraryMerger):
+  def __init__(self, root_label: str, new_target_prefix: str) -> None:
+    super().__init__(root_label, f"{new_target_prefix}internal_", False)
+    self._cc_shared_library: Rule = BuiltInRules.rules()["cc_shared_library"]
+    self._actual_target_prefix = new_target_prefix
 
-  def transform(self, node: Node) -> List[TargetNode]:
-    container_node: ContainerNode = cast(ContainerNode, node)
-    # str_list_args: Dict[str, Set[str]] = {"copts": set(), "linkopts": set()}
-    self._collect_args(container_node, self._str_list_args)
-    return []
+  def transform(self, repo_root: RepositoryNode) -> List[TargetNode]:
+    internal_cc_library: TargetNode = super().transform(repo_root)[0]
+    root_target: TargetNode = cast(TargetNode, repo_root[self._root_label])
 
-  def _collect_args(self, node: ContainerNode,
-      str_list_args: Dict[str, Set[str]]) -> None:
-    for child in node.children.values():
-      if isinstance(child, ContainerNode):
-        self._collect_args(cast(ContainerNode, child), str_list_args)
-      elif child.kind == self._cc_library:
-        target_node: TargetNode = cast(TargetNode, child)
-        for str_arg_name, str_arg_vals in str_list_args.items():
-          arg_val: Optional[List[str]] = target_node.string_list_args.get(
-              str_arg_name)
-          if arg_val is not None:
-            str_arg_vals.update(arg_val)
+    agg_cc_shared_library: TargetNode = root_target.duplicate(None,
+                                                              f"{self._actual_target_prefix}{root_target.name}",
+                                                              None)
+    old_shared_lib_name: str = agg_cc_shared_library.string_args[
+      "shared_lib_name"]
+    agg_cc_shared_library.string_args[
+      "shared_lib_name"] = f"{self._actual_target_prefix}{old_shared_lib_name}"
 
-# class PackageCcLibraryMerger(RuleTransformer):
-#   def __init__(self) -> None:
-#     self._cc_library: Rule = BuiltInRules.rules()["cc_library"]
-#
-#   def transform(self, node: Node) -> List[TargetNode]:
-#     pkg_node: PackageNode = cast(PackageNode, node)
-#
-#     agg_cc_deps: Dict[str, Set[TargetNode]] = {}
-#
-#     for target in pkg_node.get_targets():
-#       if target.kind != self._cc_library:
-#         continue
-#
-#       strip_include_prefix: Optional[str] = target.string_args.get(
-#           "strip_include_prefix")
-#       if strip_include_prefix:
-#         agg_cc_deps.setdefault(strip_include_prefix, set()).add(target)
-#
-#     tmp_cc_libraries: List[TargetNode] = []
-#     for strip_include_prefix, agg_deps in agg_cc_deps.items():
-#       suffix: str = strip_include_prefix.replace("/", "_").replace(".", "dot")
-#       agg_cc_library = TargetNode(self._cc_library,
-#                                   f"aggregated_{pkg_node.name}__{suffix}",
-#                                   str(pkg_node))
-#       agg_cc_library.label_list_args["deps"] = list(agg_deps)
-#       agg_cc_library.string_args["strip_include_prefix"] = strip_include_prefix
-#       tmp_cc_libraries.append(agg_cc_library)
-#
-#     # for agg_cc_lib in agg_cc_libraries:
-#     #   pkg_node.children[str(agg_cc_lib)] = agg_cc_lib
-#
-#     agg_cc_libraries: List[TargetNode] = []
-#     for tmp_cc_lib in tmp_cc_libraries:
-#       agg_cc_lib: TargetNode = CcLibraryMerger(tmp_cc_lib).transform(pkg_node)[
-#         0]
-#       agg_cc_lib.string_args.update(tmp_cc_lib.string_args)
-#       agg_cc_libraries.append(agg_cc_lib)
-#
-#     # for agg_cc_lib in agg_cc_libraries:
-#     #   pkg_node.children[str(agg_cc_lib)] = agg_cc_lib
-#
-#     return agg_cc_libraries
+    agg_cc_shared_library.label_list_args[
+      self._get_roots_arg_name(root_target)].clear()
+    agg_cc_shared_library.label_list_args[
+      self._get_roots_arg_name(root_target)].append(
+        internal_cc_library)
+
+    repo_root[str(internal_cc_library)] = internal_cc_library
+    repo_root[str(agg_cc_shared_library)] = agg_cc_shared_library
+
+    return [internal_cc_library, agg_cc_shared_library]
+
+  def _get_root_deps(self, root_target: TargetNode) -> List[TargetNode]:
+    return root_target.label_list_args[self._get_roots_arg_name(root_target)]
+
+  def _get_roots_arg_name(self, root_target: TargetNode) -> str:
+    return "roots" if "roots" in root_target.label_list_args else "deps"
+
+
+class ChainedCcLibraryMerger:
+  _MERGERS_BY_RULE_KIND: Dict[Rule, Type[CcLibraryMerger]] = {
+      BuiltInRules.rules()["cc_shared_library"]: CcSharedLibraryMerger,
+      BuiltInRules.rules()["cc_library"]: CcLibraryMerger,
+  }
+
+  def __init__(self, merged_targets: MergedTargetsConfig) -> None:
+    self._transformers: List[CcLibraryMerger] = []
+    self._cc_shared_library: Rule = BuiltInRules.rules()["cc_shared_library"]
+    self.merged_targets: MergedTargetsConfig = merged_targets
+
+  def transform(self, repo_root: RepositoryNode) -> List[TargetNode]:
+    rv: List[TargetNode] = []
+    for original_label in self.merged_targets.original_targets:
+      oritinal_target: TargetNode = cast(TargetNode, repo_root[original_label])
+      transformer: CcLibraryMerger = \
+        ChainedCcLibraryMerger._MERGERS_BY_RULE_KIND[oritinal_target.kind](
+            original_label, self.merged_targets.new_targets_prefix)
+      rv.extend(transformer.transform(repo_root))
+
+    return rv

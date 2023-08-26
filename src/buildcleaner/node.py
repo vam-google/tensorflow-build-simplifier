@@ -19,18 +19,13 @@ class Function:
 
 
 class Node:
-  def __init__(self, kind: Rule, name: str, label: str,
-      copy_node: Optional[Node]) -> None:
+  def __init__(self, kind: Rule, name: str, label: str) -> None:
     self.kind: Rule = kind
     self.name: str
     self.label: str
 
-    if copy_node:
-      self.name = str(copy_node.name)
-      self.label = str(copy_node.label)
-    else:
-      self.name = name
-      self.label = label
+    self.name = name
+    self.label = label
 
   def __str__(self) -> str:
     return self.label
@@ -58,61 +53,138 @@ class Node:
   def __hash__(self) -> int:
     return self.label.__hash__()
 
+  def get_parent_label(self) -> str:
+    package_label_index: int = self.label.rfind(":")
+    if package_label_index >= 0:
+      # label belongs to a target, return parent package label
+      return self.label[:package_label_index]
+
+    # label belongs to a container, its parent is either top-level package,
+    # repository or the global root node
+    package_label_index = self.label.rfind("/")
+
+    if package_label_index < 0:
+      # label belongs to a global root, as it is the only one without slashes
+      # in it
+      raise LookupError("Root node cannonot have a parrent")
+
+    if self.label.endswith("//"):
+      # label belongs to a repository, return global root label
+      return "@" if self.label.startswith("@") else ""
+
+    if self.label[package_label_index - 1] == "/":
+      # label is the top most package in a repo, return the repo
+      return self.label[:package_label_index + 1]
+
+    # label is a nested package in a repo, return a parent package
+    return self.label[:package_label_index]
+
 
 class ContainerNode(Node):
   @abstractmethod
-  def __init__(self, kind: Rule, name: str, label: str,
-      copy_node: Optional[ContainerNode]) -> None:
-    super().__init__(kind, name, label, copy_node)
+  def __init__(self, kind: Rule, name: str, label: str) -> None:
+    super().__init__(kind, name, label)
     self.children: Dict[str, Node] = {}
-    if copy_node:
-      self.children = dict(copy_node.children)
 
+  # shallow search only
   def get_containers(self, kind: Optional[Rule] = None) -> Iterable[
     ContainerNode]:
     for node in self.children.values():
       if isinstance(node, ContainerNode) and (not kind or node.kind == kind):
         yield cast(ContainerNode, node)
 
+  # shallow search only
   def get_targets(self, kind: Optional[Rule] = None) -> Iterable[TargetNode]:
     for node in self.children.values():
       if isinstance(node, TargetNode) and (not kind or (node.kind == kind)):
         yield cast(TargetNode, node)
 
+  # shalow search only
   def get_target(self, name) -> Optional[TargetNode]:
     for label, node in self.children.items():
       if isinstance(node, TargetNode) and node.name == name:
         return node
     return None
 
+  def __getitem__(self, label: str) -> Optional[Node]:
+    if not label.startswith(self.label):
+      return None
+
+    child_start_index: int = len(self.label)
+    if len(label) == child_start_index:
+      return self
+
+    child_label_start_char: str = label[child_start_index]
+    if child_label_start_char == ":":
+      # It must be a target, so must be amoung direct children of this container
+      return self.children.get(label)
+
+    child_start_index += 1  # +1 is to skip '/' delimiter
+    next_package_index: int
+    next_target_index: int
+    if label[child_start_index] == "/":
+      # self is RootNode as its label ends before '//'
+      next_package_index = child_start_index + 1
+      next_target_index = -1
+    else:
+      next_package_index = label.find("/", child_start_index)
+      next_target_index = label.rfind(":", child_start_index)
+
+    next_label: str
+
+    if next_package_index < 0 and next_target_index < 0:
+      return self.children.get(label)
+    elif next_package_index < 0:
+      next_label = label[:next_target_index]
+    elif next_target_index < 0:
+      next_label = label[:next_package_index]
+    else:
+      next_label = label[:min(next_target_index, next_package_index)]
+
+    next_child: Optional[Node] = self.children.get(next_label)
+    if not next_child:
+      return None
+
+    # It must be a container node, or this method would have terminated earlier
+    return cast(ContainerNode, next_child)[label]
+
+  def __setitem__(self, label: str, child: Node) -> None:
+    if label != child.label:
+      raise ValueError(
+          f"Label and child do not match: label = {label}, child = {child}")
+
+    parent_label: Optional[str] = child.get_parent_label()
+    if parent_label is None:
+      raise LookupError(
+          f"Cannot put node in container: container = {self}, node = {child}")
+
+    parent: Optional[Node] = self[parent_label]
+    if parent is None:
+      return
+
+    cast(ContainerNode, parent).children[child.label] = child
+
 
 class RootNode(ContainerNode):
   _RULE_KIND: Rule = Rule("__root__")
 
   def __init__(self, name: str) -> None:
-    super().__init__(RootNode._RULE_KIND, name, name, None)
+    super().__init__(RootNode._RULE_KIND, name, name)
 
 
 class RepositoryNode(ContainerNode):
   _RULE_KIND: Rule = Rule("__repository__")
 
   def __init__(self, name: str, parent_label: str) -> None:
-    super().__init__(RepositoryNode._RULE_KIND, name, f"{parent_label}{name}//",
-                     None)
+    super().__init__(RepositoryNode._RULE_KIND, name, f"{parent_label}{name}//")
 
 
 class PackageNode(ContainerNode):
   _RULE_KIND: Rule = Rule("__package__")
 
-  def __init__(self, name: str, parent_label: str, depth: int,
-      copy_node: Optional[PackageNode] = None) -> None:
-    if copy_node:
-      super().__init__(PackageNode._RULE_KIND, "", "", copy_node)
-    else:
-      super().__init__(PackageNode._RULE_KIND, name,
-                       f"{parent_label}{'' if depth <= 2 else '/'}{name}",
-                       None)
-
+  def __init__(self, name: str, parent_label: str, depth: int) -> None:
+    super().__init__(PackageNode._RULE_KIND, name,
+                     f"{parent_label}{'' if depth <= 2 else '/'}{name}")
     self.functions: List[Function] = []
 
   def get_packages(self) -> Iterable[PackageNode]:
@@ -125,12 +197,8 @@ class PackageNode(ContainerNode):
 class TargetNode(Node):
   _TARGET_STUB_KIND: Rule = Rule("__target_stub__")
 
-  def __init__(self, kind: Rule, name: str, parent_label: str,
-      copy_node: Optional[TargetNode] = None) -> None:
-    if copy_node:
-      super().__init__(kind, "", "", copy_node)
-    else:
-      super().__init__(kind, name, f"{parent_label}:{name}", None)
+  def __init__(self, kind: Rule, name: str, parent_label: str) -> None:
+    super().__init__(kind, name, f"{parent_label}:{name}")
 
     self.label_list_args: Dict[str, List[TargetNode]] = {}
     self.label_args: Dict[str, TargetNode] = {}
@@ -144,19 +212,46 @@ class TargetNode(Node):
     self.generator_name: str = ""
     self.generator_function: str = ""
 
-    if copy_node:
-      self.label_list_args = dict(copy_node.label_list_args)
-      self.label_args = dict(copy_node.label_args)
-      self.string_list_args = dict(copy_node.string_list_args)
-      self.string_args = dict(copy_node.string_args)
-      self.bool_args = dict(copy_node.bool_args)
-      self.str_str_map_args = dict(copy_node.str_str_map_args)
+  def duplicate(self, kind: Optional[Rule], name: Optional[str],
+      parent_label: Optional[str]) -> TargetNode:
+    copy: TargetNode = TargetNode(kind if kind else self.kind,
+                                  name if name else self.name,
+                                  parent_label if parent_label else self.get_parent_label())
+    copy.label_list_args = self._deep_copy_label_list_args(self.label_list_args)
+    copy.label_args = dict(self.label_args)
+    copy.string_list_args = self._deep_copy_str_list_args(self.string_list_args)
+    copy.string_args = dict(self.string_args)
+    copy.bool_args = dict(self.bool_args)
+    copy.str_str_map_args = self._deep_copy_str_str_map_args(
+        self.str_str_map_args)
+    copy.out_label_list_args = self._deep_copy_label_list_args(
+        self.out_label_list_args)
+    copy.out_label_args = dict(self.out_label_args)
+    copy.generator_function = self.generator_function
+    copy.generator_name = self.generator_name
 
-      self.out_label_list_args = dict(copy_node.out_label_list_args)
-      self.out_label_args = dict(copy_node.out_label_args)
+    return copy
 
-      self.generator_function = copy_node.generator_function
-      self.generator_name = copy_node.generator_name
+  def _deep_copy_label_list_args(self,
+      list_args: Dict[str, List[TargetNode]]) -> Dict[str, List[TargetNode]]:
+    deep_copy: Dict[str, List[TargetNode]] = dict()
+    for k, v in list_args.items():
+      deep_copy[k] = list(v)
+    return deep_copy
+
+  def _deep_copy_str_list_args(self, list_args: Dict[str, List[str]]) -> Dict[
+    str, List[str]]:
+    deep_copy: Dict[str, List[str]] = dict()
+    for k, v in list_args.items():
+      deep_copy[k] = list(v)
+    return deep_copy
+
+  def _deep_copy_str_str_map_args(self, list_args: Dict[str, Dict[str, str]]) -> \
+      Dict[str, Dict[str, str]]:
+    deep_copy: Dict[str, Dict[str, str]] = dict()
+    for k, v in list_args.items():
+      deep_copy[k] = dict(v)
+    return deep_copy
 
   def is_stub(self) -> bool:
     return self.kind == TargetNode._TARGET_STUB_KIND
@@ -169,9 +264,6 @@ class TargetNode(Node):
     pkg_and_name: List[str] = label.split(":")
     return TargetNode(TargetNode._TARGET_STUB_KIND, pkg_and_name[1],
                       pkg_and_name[0])
-
-  def get_parent_label(self) -> str:
-    return self.label[:self.label.rfind(":")]
 
   def get_targets(self, kind: Optional[Rule] = None) -> Iterable[TargetNode]:
     # targets: Dict[str, TargetNode] = {}
@@ -189,7 +281,7 @@ class FileNode(TargetNode):
   SOURCE_FILE_KIND: Rule = Rule("source")
 
   def __init__(self, name: str, parent_label: str) -> None:
-    super().__init__(FileNode.SOURCE_FILE_KIND, name, parent_label, None)
+    super().__init__(FileNode.SOURCE_FILE_KIND, name, parent_label)
 
 
 class GeneratedFileNode(TargetNode):
@@ -197,8 +289,7 @@ class GeneratedFileNode(TargetNode):
 
   def __init__(self, name: str, parent_label: str,
       maternal_target: TargetNode) -> None:
-    super().__init__(GeneratedFileNode.GENERATED_FILE_KIND, name, parent_label,
-                     None)
+    super().__init__(GeneratedFileNode.GENERATED_FILE_KIND, name, parent_label)
     self.maternal_target: TargetNode = maternal_target
 
   @staticmethod

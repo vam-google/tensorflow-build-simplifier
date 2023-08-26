@@ -29,8 +29,8 @@ class PackageTreeBuilder:
     return match.group("external") == "@", match.group("repo"), match.group(
         "package"), match.group("name")
 
-  def build_package_tree(self, target_nodes_list: Iterable[Node]) -> Dict[
-    str, ContainerNode]:
+  def build_package_tree(self, target_nodes_list: Iterable[Node]) -> Tuple[
+    RootNode, RootNode]:
     external_root = RootNode("@")
     internal_root = RootNode("")
     all_containers: Dict[str, ContainerNode] = {
@@ -64,7 +64,7 @@ class PackageTreeBuilder:
         container_node = next_package_node
       container_node.children[str(node)] = node
 
-    return all_containers
+    return internal_root, external_root
 
 
 class DagBuilder:
@@ -131,15 +131,14 @@ class DagBuilder:
 
 
 class DgPkgBuilder(DagBuilder):
-  def __init__(self, root: TargetNode,
-      tree_nodes: Dict[str, ContainerNode]) -> None:
+  def __init__(self, root: TargetNode, repo_root: RepositoryNode) -> None:
     super().__init__(root)
     self._inbound_pkg_edges: Dict[
       PackageNode, Set[PackageNode]] = self._build_package_edges(
-        self._inbound_edges, tree_nodes)
+        self._inbound_edges, repo_root)
     self._outbound_pkg_edges: Dict[
       PackageNode, Set[PackageNode]] = self._build_package_edges(
-        self._outbound_edges, tree_nodes)
+        self._outbound_edges, repo_root)
 
   def build_package_dg(self, sort_by_indegree: bool) -> List[
     Tuple[PackageNode, Set[PackageNode], Set[PackageNode]]]:
@@ -167,15 +166,14 @@ class DgPkgBuilder(DagBuilder):
 
   def _build_package_edges(self,
       direct_edges: Dict[TargetNode, Set[TargetNode]],
-      tree_nodes: Dict[str, ContainerNode]) -> Dict[
-    PackageNode, Set[PackageNode]]:
+      repo_root: RepositoryNode) -> Dict[PackageNode, Set[PackageNode]]:
     pkg_edges: Dict[PackageNode, Set[PackageNode]] = {}
     for the_node, edge in direct_edges.items():
       the_pkg: PackageNode = cast(PackageNode,
-                                  tree_nodes[str(the_node.get_parent_label())])
+                                  repo_root[str(the_node.get_parent_label())])
       cur_pkg_edges = pkg_edges.setdefault(the_pkg, set())
       for direct_node in edge:
-        direct_pkg: PackageNode = cast(PackageNode, tree_nodes[
+        direct_pkg: PackageNode = cast(PackageNode, repo_root[
           direct_node.get_parent_label()])
         # do not put reflexive edges
         if direct_pkg != the_pkg:

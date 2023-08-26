@@ -7,32 +7,21 @@ from typing import cast
 from buildcleaner.node import ContainerNode
 from buildcleaner.node import FileNode
 from buildcleaner.node import Function
-from buildcleaner.node import Node
 from buildcleaner.node import PackageNode
+from buildcleaner.node import RepositoryNode
 from buildcleaner.node import TargetNode
 from buildcleaner.rule import PackageFunctions
 
 
 class RuleTransformer:
   @abstractmethod
-  def transform(self, node: Node) -> List[TargetNode]:
+  def transform(self, repo_root: RepositoryNode) -> List[TargetNode]:
     pass
 
 
-class ChainTransformer(RuleTransformer):
-  def __init__(self, transformers_chain: List[RuleTransformer]) -> None:
-    self.transformers_chain: List[RuleTransformer] = list(transformers_chain)
-
-  def transform(self, node: Node) -> List[TargetNode]:
-    rv: List[TargetNode] = []
-    for transformer in self.transformers_chain:
-      rv.extend(transformer.transform(node))
-    return rv
-
-
 class ExportFilesTransformer(RuleTransformer):
-  def transform(self, node: Node) -> List[TargetNode]:
-    self._populate_export_files(cast(ContainerNode, node))
+  def transform(self, repo_root: RepositoryNode) -> List[TargetNode]:
+    self._populate_export_files(repo_root)
     return []
 
   def _populate_export_files(self, root: ContainerNode):

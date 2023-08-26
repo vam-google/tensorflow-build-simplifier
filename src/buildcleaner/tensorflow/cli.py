@@ -11,8 +11,8 @@ class TfBuildCleanerCli(BuildCleanerCli):
     super().__init__(cli_args)
 
   def generate_build(self) -> Build:
-    return TfBuild(self._root_target, self._bazel_config, self._prefix_path,
-                   self._merged_targets)
+    return TfBuild(self._config.root_target, self._config.bazel_config,
+                   self._config.prefix_path, self._config.merged_targets)
 
 
 if __name__ == '__main__':

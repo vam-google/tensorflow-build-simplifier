@@ -241,7 +241,6 @@ class BazelBuildTargetsParser:
     str, Dict[str, TargetNode]]:
     target_rules: List[str] = query_label_kind_output.splitlines()
     internal_nodes: Dict[str, TargetNode] = {}
-    kinds: Dict[str, Rule] = {}
     for target_rule in target_rules:
       match = self._label_kind_regex.search(target_rule)
       if not match:

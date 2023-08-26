@@ -1,6 +1,10 @@
+import json
 import os
 import subprocess
 from typing import Dict
+from typing import cast
+
+from buildcleaner.config import Config
 
 
 class BuildFilesWriter:
@@ -35,3 +39,23 @@ class GraphvizWriter:
     with open(output_path, "w") as graph_file:
       graph_file.write(stdout.decode("utf-8"))
       graph_file.flush()
+
+
+class ConfigFileReader:
+  def read(self, config_path: str) -> Config:
+    with open(config_path, "r") as f:
+      config_json: Dict = json.load(f)
+
+    config: Config = Config()
+    self._populate_config(config, config_json)
+
+    return config
+
+  def _populate_config(self, config: object, config_json: Dict) -> None:
+    for k, v in config_json.items():
+      if isinstance(v, (str, int, bool)):
+        setattr(config, k, v)
+      elif isinstance(v, list):
+        cast(list, getattr(config, k)).extend(cast(list, v))
+      else:  # dict
+        self._populate_config(getattr(config, k), v)

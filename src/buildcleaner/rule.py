@@ -66,7 +66,7 @@ class BuiltInRules:
                         label_args=["shared_library", "interface_library"],
                         bool_args=["system_provided"]),
       "cc_shared_library": Rule(kind="cc_shared_library",
-                                label_list_args=["roots",
+                                label_list_args=["roots", "deps",
                                                  "additional_linker_inputs",
                                                  "dynamic_deps"],
                                 string_list_args=["exports_filter",
