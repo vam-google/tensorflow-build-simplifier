@@ -3,7 +3,6 @@ from typing import cast
 from buildcleaner.graph import PackageTreeBuilder
 from buildcleaner.node import RepositoryNode
 from buildcleaner.node import RootNode
-from buildcleaner.node import TargetNode
 from buildcleaner.parser import BazelBuildTargetsParser
 from buildcleaner.runner import BazelRunner
 from buildcleaner.runner import CollectedTargets
@@ -25,7 +24,6 @@ class Build:
     self.external_root: RootNode
     self.internal_root, self.external_root = tree_builder.build_package_tree(
         targets.all_nodes.values())
-    self.input_target: TargetNode = targets.all_nodes[root_target]
 
   def repo_root(self) -> RepositoryNode:
     return cast(RepositoryNode, self.internal_root["//"])

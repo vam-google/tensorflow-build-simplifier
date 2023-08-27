@@ -160,7 +160,8 @@ class ContainerNode(Node):
 
     parent: Optional[Node] = self[parent_label]
     if parent is None:
-      return
+      raise LookupError(
+          f"Cannot put node in container: container = {self}, node = {child}")
 
     cast(ContainerNode, parent).children[child.label] = child
 
