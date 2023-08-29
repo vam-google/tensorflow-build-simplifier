@@ -19,6 +19,7 @@ class Function:
 
 
 class Node:
+  @abstractmethod
   def __init__(self, kind: Rule, name: str, label: str) -> None:
     self.kind: Rule = kind
     self.name: str
@@ -54,14 +55,17 @@ class Node:
     return self.label.__hash__()
 
   def get_parent_label(self) -> str:
-    package_label_index: int = self.label.rfind(":")
+    return self._get_parent_label(self.label)
+
+  def _get_parent_label(self, label: str) -> str:
+    package_label_index: int = label.rfind(":")
     if package_label_index >= 0:
       # label belongs to a target, return parent package label
-      return self.label[:package_label_index]
+      return label[:package_label_index]
 
     # label belongs to a container, its parent is either top-level package,
     # repository or the global root node
-    package_label_index = self.label.rfind("/")
+    package_label_index = label.rfind("/")
 
     if package_label_index < 0:
       # label belongs to a global root, as it is the only one without slashes
@@ -70,14 +74,14 @@ class Node:
 
     if self.label.endswith("//"):
       # label belongs to a repository, return global root label
-      return "@" if self.label.startswith("@") else ""
+      return "@" if label.startswith("@") else ""
 
-    if self.label[package_label_index - 1] == "/":
+    if label[package_label_index - 1] == "/":
       # label is the top most package in a repo, return the repo
-      return self.label[:package_label_index + 1]
+      return label[:package_label_index + 1]
 
     # label is a nested package in a repo, return a parent package
-    return self.label[:package_label_index]
+    return label[:package_label_index]
 
 
 class ContainerNode(Node):
@@ -149,11 +153,27 @@ class ContainerNode(Node):
     return cast(ContainerNode, next_child)[label]
 
   def __setitem__(self, label: str, child: Node) -> None:
-    if label != child.label:
+    self._setitem(label, child)
+
+  def __delitem__(self, label: str) -> None:
+    self._setitem(label, None)
+
+  def tree_nodes(self) -> Iterable[Node]:
+    return self._tree_nodes_preorder(self)
+
+  def _tree_nodes_preorder(self, node: Node) -> Iterable[Node]:
+    yield node
+    if isinstance(node, ContainerNode):
+      container_node: ContainerNode = cast(ContainerNode, node)
+      for child in container_node.children.values():
+        yield from self._tree_nodes_preorder(child)
+
+  def _setitem(self, label: str, child: Optional[Node]) -> None:
+    if child and label != child.label:
       raise ValueError(
           f"Label and child do not match: label = {label}, child = {child}")
 
-    parent_label: Optional[str] = child.get_parent_label()
+    parent_label: Optional[str] = self._get_parent_label(label)
     if parent_label is None:
       raise LookupError(
           f"Cannot put node in container: container = {self}, node = {child}")
@@ -163,7 +183,11 @@ class ContainerNode(Node):
       raise LookupError(
           f"Cannot put node in container: container = {self}, node = {child}")
 
-    cast(ContainerNode, parent).children[child.label] = child
+    container_parent: ContainerNode = cast(ContainerNode, parent)
+    if child:
+      container_parent.children[label] = child
+    else:
+      del container_parent.children[label]
 
 
 class RootNode(ContainerNode):

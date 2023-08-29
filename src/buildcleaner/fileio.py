@@ -22,6 +22,7 @@ class BuildFilesWriter:
       build_file.write(file_body)
       build_file.flush()
       build_file.close()
+      print(f"    {full_file_path}")
 
 
 class GraphvizWriter:

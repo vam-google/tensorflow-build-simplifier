@@ -8,7 +8,7 @@ from typing import Type
 from typing import Union
 from typing import cast
 
-from buildcleaner.graph import DgPkgBuilder
+from buildcleaner.graph import TargetDagBuilder
 from buildcleaner.node import ContainerNode
 from buildcleaner.node import FileNode
 from buildcleaner.node import Function
@@ -98,6 +98,7 @@ class DebugTreePrinter:
 
     return "\n".join(lines)
 
+  # does preorder traversal
   def _print(self, node: Node, lines: List[str], depth: int, print_files: bool,
       print_targets: bool, indent: str) -> None:
     if isinstance(node, FileNode):
@@ -313,7 +314,7 @@ class BuildFilesPrinter(BuildTargetsPrinter):
 
 
 class GraphPrinter:
-  def __init__(self, dg_builder: DgPkgBuilder) -> None:
+  def __init__(self, dg_builder: TargetDagBuilder) -> None:
     self.dg_builder = dg_builder
 
   def print_target_dag(self, inbound: bool) -> str:
@@ -323,22 +324,17 @@ class GraphPrinter:
     return self._print_dot_graph(dot_root, dot_nodes, dot_edges,
                                  "InboundTargets" if inbound else "OutboundTargets")
 
-  def print_package_dg(self, inbound: bool) -> str:
-    dot_root, dot_nodes, dot_edges = self._print_dot_nodes_and_edges(
-        cast(List[Tuple[Node, Set[Node], Set[Node]]],
-             self.dg_builder.build_package_dg(inbound)), inbound)
-    return self._print_dot_graph(dot_root, dot_nodes, dot_edges,
-                                 "InboundPackages" if inbound else "OutboundPackages")
-
   def _print_dot_graph(self, root_node: str, dot_nodes: List[str],
       dot_edges: List[str], graph_name: str) -> str:
     nodes_str = "  \n".join(dot_nodes)
     edges_str = "  \n".join(dot_edges)
 
-    return f"""digraph {graph_name} {{
+    return f"""# Total Nodes: {len(dot_nodes)}
+# Total Edges: {len(dot_edges)}
+digraph {graph_name} {{
 edge [arrowhead="none",color="red;0.2:grey80:green;0.2"];
-node [fillcolor="white",shape="plain",style="filled",height="0.02",fontsize="8",fontname="Arial"];
-graph [ranksep="13.0",rankdir="LR",outputorder="edgesfirst",root="{root_node}"];
+node [fillcolor="white",shape="plain",style="filled",height="0.02",fontsize="11",fontname="Arial"];
+graph [ranksep="11.0",rankdir="LR",outputorder="edgesfirst",root="{root_node}"];
 {nodes_str}
 {edges_str}
 }}"""
@@ -357,7 +353,7 @@ graph [ranksep="13.0",rankdir="LR",outputorder="edgesfirst",root="{root_node}"];
 
     for the_node, direct_nodes, reverse_nodes in nodes_and_edges:
       dot_nodes.append(
-          f'"{the_node}" [label="{node_no}:{len(direct_nodes)}:{len(reverse_nodes)}"];')
+          f'"{the_node}" [label="{node_no}:{len(direct_nodes)}:{len(reverse_nodes)}"]; # {the_node.kind}')
       node_no += 1
       for direct_node in direct_nodes:
         if direct_node == the_node:

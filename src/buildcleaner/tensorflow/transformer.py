@@ -9,6 +9,7 @@ from typing import Type
 from typing import cast
 
 from buildcleaner.config import MergedTargetsConfig
+from buildcleaner.graph import PackageTree
 from buildcleaner.node import ContainerNode
 from buildcleaner.node import FileNode
 from buildcleaner.node import Node
@@ -136,6 +137,9 @@ class CcLibraryMerger(RuleTransformer):
       copts: Set[str] = agg_string_list_args["copts"]
       if "-fexceptions" in copts and "-fno-exceptions" in copts:
         copts.remove("-fno-exceptions")
+      if "-O3" in copts:
+        copts.remove("-O3")
+        copts.add("-O2")
 
     for arg_name, arg_str_val in agg_string_list_args.items():
       agg_cc_library.string_list_args.setdefault(arg_name, []).extend(
@@ -248,7 +252,7 @@ class CcLibraryMerger(RuleTransformer):
 
 class CcSharedLibraryMerger(CcLibraryMerger):
   def __init__(self, root_label: str, new_target_prefix: str) -> None:
-    super().__init__(root_label, f"{new_target_prefix}internal_", False)
+    super().__init__(root_label, f"_{new_target_prefix}internal_", False)
     self._cc_shared_library: Rule = BuiltInRules.rules()["cc_shared_library"]
     self._actual_target_prefix = new_target_prefix
 
@@ -271,7 +275,11 @@ class CcSharedLibraryMerger(CcLibraryMerger):
         internal_cc_library)
 
     repo_root[str(internal_cc_library)] = internal_cc_library
-    repo_root[str(agg_cc_shared_library)] = agg_cc_shared_library
+    tree_builder: PackageTree = PackageTree()
+    tree_builder.replace_target(repo_root, str(root_target),
+                                agg_cc_shared_library)
+
+    # repo_root[str(agg_cc_shared_library)] = agg_cc_shared_library
 
     return [internal_cc_library, agg_cc_shared_library]
 

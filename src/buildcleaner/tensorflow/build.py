@@ -1,7 +1,11 @@
+from typing import List
+
 from buildcleaner.build import Build
 from buildcleaner.config import MergedTargetsConfig
+from buildcleaner.node import TargetNode
 from buildcleaner.parser import BazelBuildTargetsParser
 from buildcleaner.rule import BuiltInRules
+from buildcleaner.tensorflow.graph import TfTargetDag
 from buildcleaner.tensorflow.rule import TfRules
 from buildcleaner.tensorflow.transformer import \
   CcHeaderOnlyLibraryTransformer
@@ -21,5 +25,9 @@ class TfBuild(Build):
 
     CcHeaderOnlyLibraryTransformer().transform(self.repo_root())
     GenerateCcTransformer().transform(self.repo_root())
-    ChainedCcLibraryMerger(merged_targets).transform(self.repo_root())
+    new_targets: List[TargetNode] = ChainedCcLibraryMerger(
+        merged_targets).transform(self.repo_root())
     ExportFilesTransformer().transform(self.repo_root())
+
+    dag: TfTargetDag = TfTargetDag()
+    dag.prune_unreachable_targets(self.internal_root, new_targets)

@@ -2,6 +2,7 @@ import re
 from typing import Dict
 from typing import Iterable
 from typing import List
+from typing import Optional
 from typing import Pattern
 from typing import Set
 from typing import Tuple
@@ -17,7 +18,70 @@ from buildcleaner.node import RootNode
 from buildcleaner.node import TargetNode
 
 
-class PackageTreeBuilder:
+class TargetDag:
+  def dfs_graph(self, from_target: TargetNode,
+      visited: Dict[TargetNode, Set[TargetNode]],
+      reverse_visited: Optional[Dict[TargetNode, Set[TargetNode]]],
+      path: Dict[str, TargetNode]) -> None:
+    from_label: str = str(from_target)
+    if from_label in path:
+      cycle_path = " -> ".join(path) + " -> " + from_label
+      raise ValueError(f"Cycle found: {cycle_path}")
+
+    if from_target in visited:
+      return
+
+    path[from_label] = from_target
+    visited.setdefault(from_target, set())
+    # to make sure that root also get to reverse_visited
+    if reverse_visited is not None:
+      reverse_visited.setdefault(from_target, set())
+
+    for to_target in from_target.get_targets():
+      if not to_target.is_external():
+        actual_to_target: TargetNode = to_target
+        if isinstance(to_target, GeneratedFileNode):
+          actual_to_target = cast(GeneratedFileNode, to_target).maternal_target
+        if not isinstance(actual_to_target, FileNode):
+          visited[from_target].add(actual_to_target)
+          if reverse_visited is not None:
+            reverse_visited.setdefault(actual_to_target, set()).add(from_target)
+          self.dfs_graph(actual_to_target, visited, reverse_visited,
+                         path)
+
+    del path[from_label]
+
+  def prune_unreachable_targets(self, root: RootNode,
+      artifact_nodes: List[TargetNode]) -> None:
+    visited: Dict[TargetNode, Set[TargetNode]] = {}
+    path: Dict[str, TargetNode] = {}
+
+    for artifact_node in artifact_nodes:
+      self.dfs_graph(artifact_node, visited, None, path)
+
+    unreachable_nodes: List[TargetNode] = []
+    for node in root.tree_nodes():
+      if not self.is_removable_node(node):
+        continue
+      target: TargetNode = cast(TargetNode, node)
+      if target in visited:
+        continue
+      unreachable_nodes.append(target)
+
+    for unreachable_node in unreachable_nodes:
+      del root[str(unreachable_node)]
+      for unreachable_out_targets in unreachable_node.out_label_list_args.values():
+        for unreachable_out_target in unreachable_out_targets:
+          del root[str(unreachable_out_target)]
+
+      for unreachable_out_target in unreachable_node.out_label_args.values():
+        del root[str(unreachable_out_target)]
+
+  def is_removable_node(self, node: Node) -> bool:
+    return not isinstance(node, (FileNode, GeneratedFileNode, ContainerNode))
+
+
+class PackageTree:
   def __init__(self) -> None:
     self._label_splitter_regex: Pattern = re.compile(
         r"(?P<external>@?)(?P<repo>\w*)//(?P<package>[0-9a-zA-Z\-\._\@/]+)*:(?P<name>[0-9a-zA-Z\-\._\+/]+)$")
@@ -66,14 +130,38 @@ class PackageTreeBuilder:
 
     return internal_root, external_root
 
+  def replace_target(self, container: ContainerNode, old_target_label: str,
+      new_target: TargetNode) -> None:
+    if old_target_label in container.children:
+      del container.children[old_target_label]
+      container.children[str(new_target)] = new_target
 
-class DagBuilder:
+    for container_child in container.get_containers():
+      self.replace_target(container_child, old_target_label, new_target)
+
+    for target_child in container.get_targets():
+      for label_arg_list in target_child.label_list_args.values():
+        for i in range(len(label_arg_list)):
+          if str(label_arg_list[i]) == old_target_label:
+            label_arg_list[i] = new_target
+            # there can be no label duplicates in same arg
+            break
+
+      labels_to_replace: List[str] = []
+      for arg_name, label_arg in target_child.label_args.items():
+        if str(label_arg) == old_target_label:
+          labels_to_replace.append(arg_name)
+      for label_to_replace in labels_to_replace:
+        target_child.label_args[label_to_replace] = new_target
+
+
+class TargetDagBuilder(TargetDag):
   def __init__(self, root: TargetNode):
     self._inbound_edges: Dict[TargetNode, Set[TargetNode]] = {}
     self._outbound_edges: Dict[TargetNode, Set[TargetNode]] = {}
     path: Dict[str, TargetNode] = {}
-    self._dfs_graph_internal(root, self._outbound_edges, self._inbound_edges,
-                             path)
+    self.dfs_graph(root, self._outbound_edges, self._inbound_edges,
+                   path)
 
   def build_target_dag(self, sort_by_indegree: bool) -> List[
     Tuple[TargetNode, Set[TargetNode], Set[TargetNode]]]:
@@ -98,85 +186,3 @@ class DagBuilder:
     nodes_and_edges.sort(key=lambda x: -((len(x[1]) << 15) | len(x[2])))
 
     return nodes_and_edges
-
-  def _dfs_graph_internal(self, from_target: TargetNode,
-      visited: Dict[TargetNode, Set[TargetNode]],
-      reverse_visited: Dict[TargetNode, Set[TargetNode]],
-      path: Dict[str, TargetNode]) -> None:
-    from_label: str = str(from_target)
-    if from_label in path:
-      cycle_path = " -> ".join(path) + " -> " + from_label
-      raise ValueError(f"Cycle found: {cycle_path}")
-
-    if from_target in visited:
-      return
-
-    path[from_label] = from_target
-    visited.setdefault(from_target, set())
-    # to make sure that root also get to reverse_visited
-    reverse_visited.setdefault(from_target, set())
-
-    for to_target in from_target.get_targets():
-      if not to_target.is_external():
-        actual_to_target: TargetNode = to_target
-        if isinstance(to_target, GeneratedFileNode):
-          actual_to_target = cast(GeneratedFileNode, to_target).maternal_target
-        if not isinstance(actual_to_target, FileNode):
-          visited[from_target].add(actual_to_target)
-          reverse_visited.setdefault(actual_to_target, set()).add(from_target)
-          self._dfs_graph_internal(actual_to_target, visited, reverse_visited,
-                                   path)
-
-    del path[from_label]
-
-
-class DgPkgBuilder(DagBuilder):
-  def __init__(self, root: TargetNode, repo_root: RepositoryNode) -> None:
-    super().__init__(root)
-    self._inbound_pkg_edges: Dict[
-      PackageNode, Set[PackageNode]] = self._build_package_edges(
-        self._inbound_edges, repo_root)
-    self._outbound_pkg_edges: Dict[
-      PackageNode, Set[PackageNode]] = self._build_package_edges(
-        self._outbound_edges, repo_root)
-
-  def build_package_dg(self, sort_by_indegree: bool) -> List[
-    Tuple[PackageNode, Set[PackageNode], Set[PackageNode]]]:
-    pkgs_by_degree: List[Tuple[PackageNode, Set[PackageNode], Set[PackageNode]]]
-    if sort_by_indegree:
-      pkgs_by_degree = self._sorted_pkgs_by_edge_degree(self._inbound_pkg_edges,
-                                                        self._outbound_pkg_edges)
-    else:
-      pkgs_by_degree = self._sorted_pkgs_by_edge_degree(
-          self._outbound_pkg_edges,
-          self._inbound_pkg_edges)
-    return pkgs_by_degree
-
-  def _sorted_pkgs_by_edge_degree(self,
-      direct_edges: Dict[PackageNode, Set[PackageNode]],
-      reverse_edges: Dict[PackageNode, Set[PackageNode]]):
-    pkgs_and_edges: List[
-      Tuple[PackageNode, Set[PackageNode], Set[PackageNode]]] = []
-    for the_node, direct_nodes in direct_edges.items():
-      pkgs_and_edges.append(
-          (the_node, direct_nodes, set(reverse_edges[the_node])))
-    pkgs_and_edges.sort(key=lambda x: -((len(x[1]) << 15) | len(x[2])))
-
-    return pkgs_and_edges
-
-  def _build_package_edges(self,
-      direct_edges: Dict[TargetNode, Set[TargetNode]],
-      repo_root: RepositoryNode) -> Dict[PackageNode, Set[PackageNode]]:
-    pkg_edges: Dict[PackageNode, Set[PackageNode]] = {}
-    for the_node, edge in direct_edges.items():
-      the_pkg: PackageNode = cast(PackageNode,
-                                  repo_root[str(the_node.get_parent_label())])
-      cur_pkg_edges = pkg_edges.setdefault(the_pkg, set())
-      for direct_node in edge:
-        direct_pkg: PackageNode = cast(PackageNode, repo_root[
-          direct_node.get_parent_label()])
-        # do not put reflexive edges
-        if direct_pkg != the_pkg:
-          cur_pkg_edges.add(direct_pkg)
-
-    return pkg_edges

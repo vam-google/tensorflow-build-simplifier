@@ -1,3 +1,4 @@
+import os
 import time
 from abc import abstractmethod
 from typing import Dict
@@ -7,10 +8,11 @@ from typing import cast
 
 from buildcleaner.build import Build
 from buildcleaner.config import Config
+from buildcleaner.config import DebugTargetGraph
 from buildcleaner.fileio import BuildFilesWriter
 from buildcleaner.fileio import ConfigFileReader
 from buildcleaner.fileio import GraphvizWriter
-from buildcleaner.graph import DgPkgBuilder
+from buildcleaner.graph import TargetDagBuilder
 from buildcleaner.node import RepositoryNode
 from buildcleaner.node import RootNode
 from buildcleaner.node import TargetNode
@@ -33,12 +35,8 @@ class BuildCleanerCli:
   def main(self) -> None:
     start: float = time.time()
 
-    print("> Parsing Build Graph ...")
+    print(">>>>> Parsing Build Graph ...")
     build: Build = self.generate_build()
-
-    dag_builder: DgPkgBuilder = DgPkgBuilder(
-        cast(TargetNode, build.internal_root[self._config.root_target]),
-        build.repo_root())
 
     if self._config.output_build_path:
       self._generate_build_files(build.repo_root(),
@@ -48,12 +46,9 @@ class BuildCleanerCli:
       self._print_debug_info(build.repo_root(), None)
     if self._config.debug_tree:
       self._print_debug_info(None, build.internal_root)
-    if self._config.debug_target_graph_path:
-      self._print_target_graph(dag_builder,
-                               self._config.debug_target_graph_path)
-    if self._config.debug_package_graph_path:
-      self._print_package_graph(dag_builder,
-                                self._config.debug_package_graph_path)
+    if self._config.debug_target_graph.path:
+      self._print_target_graphs(build.repo_root(),
+                                self._config.debug_target_graph)
 
     end: float = time.time()
     print(f"Total Time: {end - start}")
@@ -64,16 +59,24 @@ class BuildCleanerCli:
 
   def _generate_build_files(self, repo: RepositoryNode,
       output_build_path: str, build_file_name: str) -> None:
-    print("> Generating Build Files ...")
+    print(f"\n>>>>> Generating Build Files in '{output_build_path}' ...")
     build_files_printer: BuildFilesPrinter = BuildFilesPrinter()
     build_files: Dict[str, str] = build_files_printer.print_build_files(repo)
     build_files_writer: BuildFilesWriter = BuildFilesWriter(output_build_path,
                                                             build_file_name)
     build_files_writer.write(build_files)
 
-  def _print_target_graph(self, dag_builder: DgPkgBuilder,
-      graph_path: str) -> None:
-    print("> Generating Targets Graph ...")
+  def _print_target_graphs(self, repo_root: RepositoryNode,
+      debug_graph_config: DebugTargetGraph) -> None:
+    for target_label in debug_graph_config.targets:
+      root_target: TargetNode = cast(TargetNode, repo_root[target_label])
+      self._print_target_graph(root_target, debug_graph_config.path)
+
+  def _print_target_graph(self, root_target: TargetNode,
+      graph_base_path: str) -> None:
+    dag_builder: TargetDagBuilder = TargetDagBuilder(root_target)
+    graph_path: str = os.path.join(graph_base_path, root_target.name)
+    print(f">>>>> Generating Targets Graph for '{root_target}' ...")
     graph_printer: GraphPrinter = GraphPrinter(dag_builder)
     inbound_graph = graph_printer.print_target_dag(True)
     outbound_graph = graph_printer.print_target_dag(False)
@@ -88,37 +91,10 @@ class BuildCleanerCli:
     writer.write_svg(inbound_graph, inbound_path_svg)
     writer.write_svg(outbound_graph, outbound_path_svg)
 
-    print("vvvvv DEBUG: Target graph path vvvvv")
-    print(f"DOT Inbound: {inbound_path_dot}")
-    print(f"SVG Inbound: {inbound_path_svg}")
-    print(f"DOT Outbound: {outbound_path_dot}")
-    print(f"SVG Outbound: {outbound_path_svg}")
-    print("^^^^^ DEBUG: Target graph path ^^^^^\n")
-
-  def _print_package_graph(self, dg_builder: DgPkgBuilder,
-      graph_path: str) -> None:
-    print("> Generating Package Graph ...")
-    graph_printer: GraphPrinter = GraphPrinter(dg_builder)
-    inbound_graph: str = graph_printer.print_package_dg(True)
-    outbound_graph: str = graph_printer.print_package_dg(False)
-
-    inbound_path_dot: str = f"{graph_path}.inbound.dot"
-    inbound_path_svg: str = f"{graph_path}.inbound.svg"
-    outbound_path_dot: str = f"{graph_path}.outbound.dot"
-    outbound_path_svg: str = f"{graph_path}.outbound.svg"
-
-    writer: GraphvizWriter = GraphvizWriter()
-    writer.write_dot(inbound_graph, inbound_path_dot)
-    writer.write_dot(outbound_graph, outbound_path_dot)
-    writer.write_svg(inbound_graph, inbound_path_svg)
-    writer.write_svg(outbound_graph, outbound_path_svg)
-
-    print("vvvvv DEBUG: Package graph path vvvvv")
-    print(f"DOT Inbound: {inbound_path_dot}")
-    print(f"SVG Inbound: {inbound_path_svg}")
-    print(f"DOT Outbound: {outbound_path_dot}")
-    print(f"SVG Outbound: {outbound_path_svg}")
-    print("^^^^^ DEBUG: Package graph path ^^^^^\n")
+    print(f"    DOT Inbound: {inbound_path_dot}")
+    print(f"    SVG Inbound: {inbound_path_svg}")
+    print(f"    DOT Outbound: {outbound_path_dot}")
+    print(f"    SVG Outbound: {outbound_path_svg}\n")
 
   def _print_debug_info(self, repo_root: Optional[RepositoryNode],
       internal_root: Optional[RootNode]) -> None:

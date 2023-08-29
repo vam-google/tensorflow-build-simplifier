@@ -1,6 +1,6 @@
 from typing import cast
 
-from buildcleaner.graph import PackageTreeBuilder
+from buildcleaner.graph import PackageTree
 from buildcleaner.node import RepositoryNode
 from buildcleaner.node import RootNode
 from buildcleaner.parser import BazelBuildTargetsParser
@@ -18,7 +18,7 @@ class Build:
     targets: CollectedTargets = targets_collector.collect_dependencies(
         root_target, bazel_config)
 
-    tree_builder: PackageTreeBuilder = PackageTreeBuilder()
+    tree_builder: PackageTree = PackageTree()
 
     self.internal_root: RootNode
     self.external_root: RootNode
