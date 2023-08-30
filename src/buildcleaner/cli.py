@@ -76,7 +76,7 @@ class BuildCleanerCli:
       graph_base_path: str) -> None:
     dag_builder: TargetDagBuilder = TargetDagBuilder(root_target)
     graph_path: str = os.path.join(graph_base_path, root_target.name)
-    print(f">>>>> Generating Targets Graph for '{root_target}' ...")
+    print(f"\n>>>>> Generating Targets Graph for '{root_target}' ...")
     graph_printer: GraphPrinter = GraphPrinter(dag_builder)
     inbound_graph = graph_printer.print_target_dag(True)
     outbound_graph = graph_printer.print_target_dag(False)

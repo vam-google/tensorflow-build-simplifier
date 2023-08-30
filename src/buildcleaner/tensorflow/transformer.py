@@ -290,7 +290,7 @@ class CcSharedLibraryMerger(CcLibraryMerger):
     return "roots" if "roots" in root_target.label_list_args else "deps"
 
 
-class ChainedCcLibraryMerger:
+class ChainedCcLibraryMerger(RuleTransformer):
   _MERGERS_BY_RULE_KIND: Dict[Rule, Type[CcLibraryMerger]] = {
       BuiltInRules.rules()["cc_shared_library"]: CcSharedLibraryMerger,
       BuiltInRules.rules()["cc_library"]: CcLibraryMerger,

@@ -51,7 +51,7 @@ class TargetDag:
 
     del path[from_label]
 
-  def prune_unreachable_targets(self, root: RootNode,
+  def prune_unreachable_targets(self, root: ContainerNode,
       artifact_nodes: List[TargetNode]) -> None:
     visited: Dict[TargetNode, Set[TargetNode]] = {}
     path: Dict[str, TargetNode] = {}

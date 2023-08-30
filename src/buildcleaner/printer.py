@@ -352,8 +352,13 @@ graph [ranksep="11.0",rankdir="LR",outputorder="edgesfirst",root="{root_node}"];
     undirected_edges: Set[str] = set()
 
     for the_node, direct_nodes, reverse_nodes in nodes_and_edges:
+      node_kind: str = f"{the_node.kind}"
+      if the_node.kind.kind == "alias":
+        actual_node: TargetNode = cast(TargetNode, the_node).label_args[
+          "actual"]
+        node_kind += f" -> {actual_node.kind} {actual_node}"
       dot_nodes.append(
-          f'"{the_node}" [label="{node_no}:{len(direct_nodes)}:{len(reverse_nodes)}"]; # {the_node.kind}')
+          f'"{the_node}" [label="{node_no}:{len(direct_nodes)}:{len(reverse_nodes)}"]; # {node_kind}')
       node_no += 1
       for direct_node in direct_nodes:
         if direct_node == the_node:
