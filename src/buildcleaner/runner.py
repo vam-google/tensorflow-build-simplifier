@@ -111,7 +111,7 @@ class TargetsCollector:
       unresolved_strs.sort()
       unresolved_str = '\n'.join(unresolved_strs)
       raise ValueError(
-        f"Unresolved targets found:\n\n{unresolved_str} \n Total unresolved targets: {len(unresolved_strs)}")
+          f"Unresolved targets found:\n\n{unresolved_str} \n Total unresolved targets: {len(unresolved_strs)}")
 
   # def collect_targets(self, root_target: str,
   #     bazel_config: str) -> CollectedTargets:
