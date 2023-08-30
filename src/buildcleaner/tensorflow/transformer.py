@@ -303,7 +303,7 @@ class ChainedCcLibraryMerger:
 
   def transform(self, repo_root: RepositoryNode) -> List[TargetNode]:
     rv: List[TargetNode] = []
-    for original_label in self.merged_targets.original_targets:
+    for original_label in self.merged_targets.targets:
       oritinal_target: TargetNode = cast(TargetNode, repo_root[original_label])
       transformer: CcLibraryMerger = \
         ChainedCcLibraryMerger._MERGERS_BY_RULE_KIND[oritinal_target.kind](

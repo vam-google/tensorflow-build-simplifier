@@ -73,38 +73,34 @@ class TargetsCollector:
     self._bazel_query_parser: BazelBuildTargetsParser = bazel_query_parser
 
   def collect_dependencies(self, root_target: str,
-      bazel_config: str) -> CollectedTargets:
+      bazel_config: str) -> Dict[str, TargetNode]:
 
-    res: CollectedTargets = CollectedTargets()
-    res.iterations = 1
-    res.incremental_lengths.append(1)
+    all_nodes: Dict[str, TargetNode] = {}
 
     internal_nodes: Dict[str, TargetNode]
     internal_nodes, external_targets, internal_targets = self._bazel_query_parser.parse_query_build_output(
         self._runner.query_deps_output(root_target, config=bazel_config,
                                        output="build"))
-    res.all_nodes.update(internal_nodes)
-    res.all_targets.update(internal_targets)
+    all_nodes.update(internal_nodes)
 
     # Resolve references
     nodes_by_kind: Dict[str, Dict[
       str, TargetNode]] = self._bazel_query_parser.parse_query_label_kind_output(
         self._runner.query_deps_output(root_target, config=bazel_config,
                                        output="label_kind"))
-    res.all_nodes = self._resolve_references(res.all_nodes, nodes_by_kind)
-    res.nodes_by_kind = nodes_by_kind
+    all_nodes = self._resolve_references(all_nodes, nodes_by_kind)
 
-    self._check_non_resolved_targets(res.all_nodes)
-    return res
+    self._check_non_resolved_targets(all_nodes)
+    return all_nodes
 
   def _check_non_resolved_targets(self,
       all_nodes: Dict[str, TargetNode]) -> None:
     unresolved_targets: Dict[TargetNode, List[str]] = {}
     for node in all_nodes.values():
-      if node.is_stub():
+      if node.is_stub() and not node.is_external():
         unresolved_targets.setdefault(node, []).append(str(node))
       for ref_target in node.get_targets():
-        if ref_target.is_stub():
+        if ref_target.is_stub() and not ref_target.is_external():
           unresolved_targets.setdefault(ref_target, []).append(str(node))
 
     unresolved_strs = []
@@ -114,7 +110,8 @@ class TargetsCollector:
         unresolved_strs.append(f"{t} <- [{referenced_from_str}]")
       unresolved_strs.sort()
       unresolved_str = '\n'.join(unresolved_strs)
-      # raise ValueError(f"Unresolved targets found:\n\n{unresolved_str} \n Total unresolved targets: {len(unresolved_strs)}")
+      raise ValueError(
+        f"Unresolved targets found:\n\n{unresolved_str} \n Total unresolved targets: {len(unresolved_strs)}")
 
   # def collect_targets(self, root_target: str,
   #     bazel_config: str) -> CollectedTargets:
