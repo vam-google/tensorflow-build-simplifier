@@ -169,7 +169,8 @@ class BuildTargetsPrinter:
                                                      node.label_args,
                                                      node.string_args,
                                                      node.out_label_args)
-    bool_args_block: str = self._print_bool_args(node.bool_args)
+    bool_args_block: str = self._print_primitive_args(node.bool_args,
+                                                      node.int_args)
     map_args_block: str = self._print_map_args(node.str_str_map_args)
 
     generator_info: str = ""
@@ -273,15 +274,22 @@ class BuildTargetsPrinter:
 
     return string_args_block
 
-  def _print_bool_args(self, bool_args: Dict[str, bool]) -> str:
-    bool_args_strs: List[str] = []
+  def _print_primitive_args(self, bool_args: Dict[str, bool],
+      int_args: Dict[str, int]) -> str:
+    primitive_arg_strs: List[str] = []
+
+    arg_str: str
     for bool_arg_name, bool_arg_value in bool_args.items():
       arg_str = f"    {bool_arg_name} = {str(bool_arg_value)},"
-      bool_args_strs.append(arg_str)
+      primitive_arg_strs.append(arg_str)
+    for int_arg_name, int_arg_value in int_args.items():
+      arg_str = f"    {int_arg_name} = {str(int_arg_value)},"
+      primitive_arg_strs.append(arg_str)
 
-    bool_args_block = "\n" + "\n".join(bool_args_strs) if bool_args_strs else ""
+    primitive_args_block = "\n" + "\n".join(
+        primitive_arg_strs) if primitive_arg_strs else ""
 
-    return bool_args_block
+    return primitive_args_block
 
   def _shorten_label(self, pkg_prefix: str, target: TargetNode):
     label = str(target)
@@ -296,7 +304,7 @@ class BuildFilesPrinter(BuildTargetsPrinter):
   def print_build_files(self, repo_node: RepositoryNode) -> Dict[
     str, str]:
     build_files_dict: Dict[str, str] = {}
-    for package_node in repo_node.children.values():
+    for package_node in repo_node.get_containers():
       self._traverse_nodes_tree(build_files_dict,
                                 cast(PackageNode, package_node))
 

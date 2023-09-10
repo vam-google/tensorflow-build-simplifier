@@ -1,4 +1,5 @@
 from typing import Dict
+from typing import Optional
 from typing import Sequence
 
 
@@ -9,20 +10,26 @@ class Rule:
       string_list_args: Sequence[str] = (),
       string_args: Sequence[str] = (),
       bool_args: Sequence[str] = (),
+      int_args: Sequence[str] = (),
       str_str_map_args: Sequence[str] = (),
       out_label_list_args: Sequence[str] = (),
       out_label_args: Sequence[str] = (),
-      import_statement: str = "") -> None:
+      import_statement: str = "",
+      outputs: Sequence[str] = ()) -> None:
     self.kind: str = kind
     self.label_list_args: Sequence[str] = label_list_args
     self.label_args: Sequence[str] = label_args
     self.string_list_args: Sequence[str] = string_list_args
     self.string_args: Sequence[str] = string_args
     self.bool_args: Sequence[str] = bool_args
+    self.int_args: Sequence[str] = int_args
     self.str_str_map_args: Sequence[str] = str_str_map_args
     self.out_label_list_args: Sequence[str] = out_label_list_args
     self.out_label_args: Sequence[str] = out_label_args
     self.import_statement: str = import_statement
+    # For simplicity, we support only {name} substitution in outputs.
+    # Support other parameters subsitutions if ever needed
+    self.outputs: Sequence[str] = outputs
 
   def __str__(self) -> str:
     return self.kind
@@ -43,25 +50,61 @@ class BuiltInRules:
   _RULES: Dict[str, Rule] = {
       "cc_library": Rule(kind="cc_library",
                          label_list_args=["srcs", "hdrs", "deps",
-                                          "textual_hdrs"],
+                                          "textual_hdrs",
+                                          "target_compatible_with"],
                          string_list_args=["copts", "linkopts", "features",
                                            "tags",
                                            "includes"],
                          string_args=["strip_include_prefix"],
                          bool_args=["linkstatic", "alwayslink"]),
+      "py_test": Rule(kind="py_test", label_list_args=["deps", "data", "srcs"],
+                      label_args=["main"],
+                      string_list_args=["tags", "args"],
+                      string_args=["srcs_version", "python_version", "size"],
+                      bool_args=[],
+                      int_args=["shard_count"],
+                      str_str_map_args=["exec_properties"]),
+      "cc_test": Rule(kind="cc_test", label_list_args=["deps", "srcs"],
+                      string_list_args=["tags", "copts", "linkopts"],
+                      string_args=["size"],
+                      bool_args=["linkstatic"],
+                      int_args=["shard_count"],
+                      str_str_map_args=["exec_properties"]),
+      "py_library": Rule(kind="py_library", label_list_args=["deps", "srcs"],
+                         string_list_args=["imports"],
+                         string_args=["srcs_version"],
+                         bool_args=["testonly"]),
       "filegroup": Rule(kind="filegroup", label_list_args=["srcs"]),
-      "alias": Rule(kind="alias", label_args=["actual"]),
-      "genrule": Rule(kind="genrule", label_list_args=["srcs", "tools"],
-                      string_args=["cmd"], out_label_list_args=["outs"]),
       "cc_binary": Rule(kind="cc_binary",
-                        label_list_args=["srcs", "deps"],
-                        string_list_args=["copts", "linkopts"]),
-      "bind": Rule(kind="bind", label_args=["actual"]),
-      "py_binary": Rule(kind="py_binary", label_list_args=["srcs", "deps"]),
+                        label_list_args=["srcs", "deps", "data"],
+                        string_list_args=["copts", "linkopts", "tags",
+                                          "features"],
+                        bool_args=["testonly", "linkshared"],
+                        str_str_map_args=["exec_properties"]),
+      "test_suite": Rule(kind="test_suite", label_list_args=["tests"],
+                         string_list_args=["tags"]),
+      "genrule": Rule(kind="genrule", label_list_args=["srcs", "tools",
+                                                       "target_compatible_with"],
+                      string_args=["cmd"], out_label_list_args=["outs"]),
+      "alias": Rule(kind="alias", label_args=["actual"]),
+      "config_setting": Rule(kind="config_setting",
+                             str_str_map_args=["values", "flag_values",
+                                               "define_values"]),
       "proto_library": Rule(kind="proto_library",
                             label_list_args=["srcs", "deps", "exports"],
                             string_list_args=["tags"],
                             bool_args=["testonly"]),
+      "py_binary": Rule(kind="py_binary", label_list_args=["srcs", "deps"],
+                        string_args=["srcs_version", "python_version"],
+                        bool_args=["testonly"]),
+      "sh_test": Rule(kind="sh_test", label_list_args=["srcs", "data"],
+                      string_list_args=["args", "tags"], string_args=["size"],
+                      int_args=["shard_count"], ),
+      #
+      # Marginaly importan (not needed?) rules, occur a few times among in 20k+
+      # total targets.
+      #
+      "bind": Rule(kind="bind", label_args=["actual"]),
       "cc_import": Rule(kind="cc_import",
                         label_args=["shared_library", "interface_library"],
                         bool_args=["system_provided"]),
@@ -72,14 +115,41 @@ class BuiltInRules:
                                 string_list_args=["exports_filter",
                                                   "user_link_flags"],
                                 string_args=["shared_lib_name"]),
+      "java_test": Rule(kind="java_test", label_list_args=["deps", "srcs"],
+                        string_list_args=["javacopts"],
+                        string_args=["size", "test_class"]),
+      "bzl_library": Rule(kind="bzl_library", label_list_args=["srcs", "deps"],
+                          import_statement='load("@bazel_skylib//:bzl_library.bzl", "bzl_library")'),
+      "sh_binary": Rule(kind="sh_binary", label_list_args=["data", "srcs"]),
+      "java_library": Rule(kind="java_library",
+                           label_list_args=["srcs", "deps", "resources",
+                                            "plugins"],
+                           string_list_args=["javacopts"],
+                           outputs=["lib{}.jar", "lib{}-src.jar"]),
+      "sh_library": Rule(kind="sh_library", label_list_args=["srcs", "deps"]),
+      "java_proto_library": Rule(kind="java_proto_library",
+                                 label_list_args=["deps"]),
+      "java_plugin": Rule(kind="java_plugin", label_list_args=["deps"],
+                          string_list_args=["tags", "output_licenses"],
+                          string_args=["processor_class"]),
+      "java_binary": Rule(kind="java_binary", label_list_args=["srcs", "deps"],
+                          string_list_args=["jvm_flags"],
+                          string_args=["main_class"]),
+      "expand_template": Rule(kind="expand_template", label_args=["template"],
+                              str_str_map_args=["substitutions"],
+                              out_label_args=["out"],
+                              import_statement='load("@bazel_skylib//rules:expand_template.bzl", "expand_template")'),
+      "cc_proto_library": Rule(kind="cc_proto_library",
+                               label_list_args=["deps", "compatible_with"]),
       "generated": Rule(kind="generated"),
-      "config_setting": Rule(kind="config_setting",
-                             str_str_map_args=["values", "flag_values",
-                                               "define_values"]),
   }
 
   @staticmethod
-  def rules() -> Dict[str, Rule]:
+  def rules(extra_rules: Optional[Dict[str, Rule]] = None) -> Dict[str, Rule]:
+    if extra_rules:
+      merged_rules: Dict[str, Rule] = dict(BuiltInRules._RULES)
+      merged_rules.update(extra_rules)
+      return merged_rules
     return BuiltInRules._RULES
 
 

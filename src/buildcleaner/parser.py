@@ -36,6 +36,7 @@ class BazelBuildTargetsParser:
           fr"\b{build_in_arg}\b\s*=\s*\"(?P<value>[0-9a-zA-Z\-\._\+/]+)\"")
 
     self._arg_bool_regex: Dict[str, Pattern] = {}
+    self._arg_int_regex: Dict[str, Pattern] = {}
     self._arg_str_str_map_regex: Dict[str, Pattern] = {}
 
     self._arg_out_label_list_regex: Dict[str, Pattern] = {}
@@ -70,6 +71,9 @@ class BazelBuildTargetsParser:
     for arg in rule.bool_args:
       self._arg_bool_regex[arg] = re.compile(
           fr"\b{arg}\b\s*=\s*(?P<value>\w+)")
+    for arg in rule.int_args:
+      self._arg_int_regex[arg] = re.compile(
+          fr"\b{arg}\b\s*=\s*(?P<value>\d+)")
     for arg in rule.str_str_map_args:
       self._arg_str_str_map_regex[arg] = re.compile(
           fr"\b{arg}\b\s*=\s*\{{(?P<values>.+)\}}[,\s]*\n")
@@ -88,6 +92,8 @@ class BazelBuildTargetsParser:
     external_targets: Set[str] = set()
     internal_nodes: Dict[str, TargetNode] = {}
 
+    unknown_rules: List[str] = []
+
     for target_rule in target_rules:
       unknown_rule: bool = True
       if not target_rule:
@@ -100,11 +106,11 @@ class BazelBuildTargetsParser:
             continue
           internal_nodes[str(node)] = node
           # Put out nodes to list of all nodes so dependency on them can be
-          # properly sesovled
+          # properly resolved
           for out_nodes in node.out_label_list_args.values():
             for out_node in out_nodes:
               internal_nodes[str(out_node)] = out_node
-          for out_node in node.out_label_args.values():
+          for out_node in chain(node.out_label_args.values(), node.outputs):
             internal_nodes[str(out_node)] = out_node
           internal_targets.add(node.label)
 
@@ -116,7 +122,8 @@ class BazelBuildTargetsParser:
               else:
                 internal_targets.add(t.label)
           for t in chain(node.label_args.values(),
-                         node.out_label_args.values()):
+                         node.out_label_args.values(),
+                         node.outputs):
             if t.label[0] == "@":
               external_targets.add(t.label)
             else:
@@ -129,8 +136,9 @@ class BazelBuildTargetsParser:
             unknown_rule = False
             break
       if unknown_rule:
+        unknown_rules.append(target_rule)
         # Trully unknown rule. Either parse it or add to list of uknown ones
-        raise ValueError(f"Unknown Rule: {target_rule}")
+        # raise ValueError(f"Unknown Rule: {target_rule}")
 
     return internal_nodes, external_targets, internal_targets
 
@@ -187,7 +195,7 @@ class BazelBuildTargetsParser:
       for string_list_arg in rule.string_list_args:
         match = self._arg_string_list_regex[string_list_arg].search(target_rule)
         if match:
-          for arg_value in match.group("values").split(", "):
+          for arg_value in match.group("values").split('", "'):
             t = self._normalize_value(arg_value)
             node.string_list_args.setdefault(string_list_arg, []).append(t)
 
@@ -203,10 +211,16 @@ class BazelBuildTargetsParser:
           t = self._normalize_value(match.group("value"))
           node.bool_args[bool_arg] = t == "True" or t == "1"
 
+      for int_arg in rule.int_args:
+        match = self._arg_int_regex[int_arg].search(target_rule)
+        if match:
+          t = self._normalize_value(match.group("value"))
+          node.int_args[int_arg] = int(t)
+
       for str_str_map_arg in rule.str_str_map_args:
         match = self._arg_str_str_map_regex[str_str_map_arg].search(target_rule)
         if match:
-          for arg_value in match.group("values").split(", "):
+          for arg_value in match.group("values").split('", "'):
             arg_k_v: List[str] = arg_value.split(": ")
             node.str_str_map_args.setdefault(str_str_map_arg, dict())[
               self._normalize_value(arg_k_v[0])] = self._normalize_value(
@@ -229,13 +243,32 @@ class BazelBuildTargetsParser:
           t_node = GeneratedFileNode.create_gen_file(t, node)
           node.out_label_args[out_label_arg] = t_node
 
+      for output_value in rule.outputs:
+        t = f"{node.get_parent_label()}:{output_value.format(node.name)}"
+        t_node = GeneratedFileNode.create_gen_file(t, node)
+        node.outputs.append(t_node)
+
+      if "target_compatible_with" in node.label_list_args:
+        target_compatible_with: List[TargetNode] = node.label_list_args[
+          "target_compatible_with"]
+        if len(target_compatible_with) == 1 and target_compatible_with[
+          0].label == "@platforms//:incompatible":
+          return None
+
       return node
 
     return re.compile(fr"^{rule.kind}\(", re.MULTILINE), args_parser_cosure
 
   def _normalize_value(self, target: str) -> str:
+    # This is very fragile and does not accomodate many potential corner cases
+    # and escaped quotes in target itself, but it seems to be good enough on
+    # practice. Improve if ever needed.
     val = target.strip()
-    return val[1:-1] if val[0] == "\"" else val
+    if val and val[0] == '"':
+      val = val[1:]
+    if val and val[-1] == '"':
+      val = val[:-1]
+    return val
 
   def parse_query_label_kind_output(self, query_label_kind_output: str) -> Dict[
     str, Dict[str, TargetNode]]:

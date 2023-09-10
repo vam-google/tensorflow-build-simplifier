@@ -84,7 +84,7 @@ class TargetDag:
 class PackageTree:
   def __init__(self) -> None:
     self._label_splitter_regex: Pattern = re.compile(
-        r"(?P<external>@?)(?P<repo>\w*)//(?P<package>[0-9a-zA-Z\-\._\@/]+)*:(?P<name>[0-9a-zA-Z\-\._\+/]+)$")
+        r"(?P<external>@?)(?P<repo>\w*)//(?P<package>[0-9a-zA-Z\-\._\@/]*):(?P<name>[0-9a-zA-Z\-\._\+/]+)$")
 
   def get_label_components(self, label: str) -> Tuple[bool, str, str, str]:
     match = self._label_splitter_regex.search(label)
@@ -111,7 +111,7 @@ class PackageTree:
       else:
         repo_node = cast(RepositoryNode, all_containers[str(repo_node)])
 
-      folders = pkg.split("/")
+      folders = pkg.split("/") if pkg else []
       container_node: ContainerNode = repo_node
       all_containers[str(container_node)] = container_node
       package_depth: int = 2

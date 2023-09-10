@@ -1,5 +1,6 @@
 from buildcleaner.build import Build
 from buildcleaner.config import ArtifactTargetsConfig
+from buildcleaner.config import BaseTargetsConfig
 from buildcleaner.config import MergedTargetsConfig
 from buildcleaner.parser import BazelBuildTargetsParser
 from buildcleaner.rule import BuiltInRules
@@ -14,13 +15,13 @@ from buildcleaner.transformer import UnreachableTargetsRemover
 
 
 class TfBuild(Build):
-  def __init__(self, root_target: str, bazel_config: str,
+  def __init__(self, base_targets: BaseTargetsConfig,
       prefix_path: str, merged_targets: MergedTargetsConfig,
       artifact_targets: ArtifactTargetsConfig) -> None:
-    super().__init__(root_target, bazel_config,
+    super().__init__(base_targets,
                      BazelBuildTargetsParser(prefix_path,
-                                             TfRules.rules(
-                                                 BuiltInRules.rules()),
+                                             BuiltInRules.rules(
+                                                 TfRules.rules()),
                                              TfRules.ignored_rules()))
 
     AliasReplacer().transform(self.repo_root())

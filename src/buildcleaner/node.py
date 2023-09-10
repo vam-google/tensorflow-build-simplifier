@@ -230,9 +230,11 @@ class TargetNode(Node):
     self.string_list_args: Dict[str, List[str]] = {}
     self.string_args: Dict[str, str] = {}
     self.bool_args: Dict[str, bool] = {}
+    self.int_args: Dict[str, int] = {}
     self.str_str_map_args: Dict[str, Dict[str, str]] = {}
     self.out_label_list_args: Dict[str, List[TargetNode]] = {}
     self.out_label_args: Dict[str, TargetNode] = {}
+    self.outputs: List[TargetNode] = []
 
     self.generator_name: str = ""
     self.generator_function: str = ""
@@ -247,11 +249,20 @@ class TargetNode(Node):
     copy.string_list_args = self._deep_copy_str_list_args(self.string_list_args)
     copy.string_args = dict(self.string_args)
     copy.bool_args = dict(self.bool_args)
+    copy.int_args = dict(self.int_args)
     copy.str_str_map_args = self._deep_copy_str_str_map_args(
         self.str_str_map_args)
     copy.out_label_list_args = self._deep_copy_label_list_args(
         self.out_label_list_args)
     copy.out_label_args = dict(self.out_label_args)
+    # This probably should be updated if name of a copy is different
+    if self.outputs and copy.name != self.name:
+      raise ValueError(
+          "Duplicating a target with legacy outputs parameter and a different "
+          "name is not supported as it requires changing it outputs's labels as "
+          "well ")
+    copy.outputs = list(self.outputs)
+
     copy.generator_function = self.generator_function
     copy.generator_name = self.generator_name
 

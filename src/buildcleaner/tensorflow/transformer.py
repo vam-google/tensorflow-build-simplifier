@@ -41,20 +41,30 @@ class CcHeaderOnlyLibraryTransformer(RuleTransformer):
         node.get_targets(self._transitive_hdrs))
     if not transitive_hdrs:
       return
-    transitive_parameters: List[TargetNode] = list(node.get_targets(
-        self._transitive_parameters_library))
-    cc_library: List[TargetNode] = []
+
+    cc_header_only_triplets: List[
+      Tuple[TargetNode, TargetNode, TargetNode]] = []
+
     for child_node in transitive_hdrs:
-      cc_library_name = child_node.name[:-len("_gather")]
-      cc_library_child = node.get_target(cc_library_name)
-      if cc_library_child:
-        cc_library.append(cc_library_child)
+      cc_library_name: str = child_node.name[:-len("_gather")]
+      cc_library_child: Optional[TargetNode] = node.get_target(cc_library_name)
 
-    for i in range(len(transitive_hdrs)):
-      hdrs_node = transitive_hdrs[i]
-      parameters_node = transitive_parameters[i]
-      cc_node = cc_library[i]
+      transitive_parameters_name: str = child_node.name[
+                                        :-len("_gathered_parameters")]
+      transitive_parameters_child: Optional[TargetNode] = node.get_target(
+          transitive_parameters_name)
 
+      if not cc_library_child or not transitive_parameters_child:
+        continue
+      if cc_library_child.generator_name != transitive_parameters_child.generator_name:
+        continue
+      if cc_library_child.generator_name != child_node.generator_name:
+        continue
+
+      cc_header_only_triplets.append(
+          (child_node, cc_library_child, transitive_parameters_child))
+
+    for hdrs_node, cc_node, parameters_node in cc_header_only_triplets:
       new_node = cc_node.duplicate(self._cc_header_only_library, "", "")
 
       for j in range(len(new_node.label_list_args["deps"])):
