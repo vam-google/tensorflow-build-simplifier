@@ -26,6 +26,7 @@ class BaseTargetsConfig:
 class ArtifactTargetsConfig:
   def __init__(self) -> None:
     self.targets: List[str] = []
+    self.prune_unreachable: bool = False
 
 
 class MergedTargetsConfig:

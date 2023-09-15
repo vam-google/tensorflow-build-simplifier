@@ -1,4 +1,5 @@
 from queue import Queue
+from typing import Callable
 from typing import Dict
 from typing import Iterable
 from typing import List
@@ -10,9 +11,8 @@ from typing import cast
 
 from buildcleaner.config import MergedTargetsConfig
 from buildcleaner.graph import PackageTree
-from buildcleaner.node import ContainerNode
 from buildcleaner.node import FileNode
-from buildcleaner.node import Node
+from buildcleaner.node import PackageNode
 from buildcleaner.node import RepositoryNode
 from buildcleaner.node import TargetNode
 from buildcleaner.rule import BuiltInRules
@@ -21,90 +21,90 @@ from buildcleaner.tensorflow.rule import TfRules
 from buildcleaner.transformer import RuleTransformer
 
 
-class CcHeaderOnlyLibraryTransformer(RuleTransformer):
-  def __init__(self) -> None:
-    self._cc_header_only_library: Rule = TfRules.rules()[
-      "cc_header_only_library"]
-    self._transitive_hdrs: Rule = TfRules.rules()["_transitive_hdrs"]
-    self._transitive_parameters_library: Rule = TfRules.rules()[
-      "_transitive_parameters_library"]
+# class CcHeaderOnlyLibraryTransformer(RuleTransformer):
+#   def __init__(self) -> None:
+#     self._cc_header_only_library: Rule = TfRules.rules()[
+#       "cc_header_only_library"]
+#     self._transitive_hdrs: Rule = TfRules.rules()["_transitive_hdrs"]
+#     self._transitive_parameters_library: Rule = TfRules.rules()[
+#       "_transitive_parameters_library"]
+#
+#   def transform(self, repo_root: RepositoryNode) -> List[TargetNode]:
+#     self._merge_cc_header_only_library(repo_root)
+#     return []
+#
+#   def _merge_cc_header_only_library(self, node: ContainerNode) -> None:
+#     for child in node.get_containers():
+#       self._merge_cc_header_only_library(child)
+#
+#     transitive_hdrs: List[TargetNode] = list(
+#         node.get_targets(self._transitive_hdrs))
+#     if not transitive_hdrs:
+#       return
+#
+#     cc_header_only_triplets: List[
+#       Tuple[TargetNode, TargetNode, TargetNode]] = []
+#
+#     for child_node in transitive_hdrs:
+#       cc_library_name: str = child_node.name[:-len("_gather")]
+#       cc_library_child: Optional[TargetNode] = node.get_target(cc_library_name)
+#
+#       transitive_parameters_name: str = child_node.name[
+#                                         :-len("_gathered_parameters")]
+#       transitive_parameters_child: Optional[TargetNode] = node.get_target(
+#           transitive_parameters_name)
+#
+#       if not cc_library_child or not transitive_parameters_child:
+#         continue
+#       if cc_library_child.generator_name != transitive_parameters_child.generator_name:
+#         continue
+#       if cc_library_child.generator_name != child_node.generator_name:
+#         continue
+#
+#       cc_header_only_triplets.append(
+#           (child_node, cc_library_child, transitive_parameters_child))
+#
+#     for hdrs_node, cc_node, parameters_node in cc_header_only_triplets:
+#       new_node = cc_node.duplicate(self._cc_header_only_library, "", "")
+#
+#       for j in range(len(new_node.label_list_args["deps"])):
+#         if str(new_node.label_list_args["deps"][j]) == str(parameters_node):
+#           new_node.label_list_args["deps"].pop(j)
+#           break
+#
+#       new_node.label_list_args["extra_deps"] = new_node.label_list_args["deps"]
+#       new_node.label_list_args["deps"] = list(hdrs_node.label_list_args["deps"])
+#       del new_node.label_list_args["hdrs"]
+#       del node.children[str(hdrs_node)]
+#       del node.children[str(parameters_node)]
+#       del node.children[str(cc_node)]
+#       node.children[str(new_node)] = new_node
 
-  def transform(self, repo_root: RepositoryNode) -> List[TargetNode]:
-    self._merge_cc_header_only_library(repo_root)
-    return []
 
-  def _merge_cc_header_only_library(self, node: ContainerNode) -> None:
-    for child in node.get_containers():
-      self._merge_cc_header_only_library(child)
-
-    transitive_hdrs: List[TargetNode] = list(
-        node.get_targets(self._transitive_hdrs))
-    if not transitive_hdrs:
-      return
-
-    cc_header_only_triplets: List[
-      Tuple[TargetNode, TargetNode, TargetNode]] = []
-
-    for child_node in transitive_hdrs:
-      cc_library_name: str = child_node.name[:-len("_gather")]
-      cc_library_child: Optional[TargetNode] = node.get_target(cc_library_name)
-
-      transitive_parameters_name: str = child_node.name[
-                                        :-len("_gathered_parameters")]
-      transitive_parameters_child: Optional[TargetNode] = node.get_target(
-          transitive_parameters_name)
-
-      if not cc_library_child or not transitive_parameters_child:
-        continue
-      if cc_library_child.generator_name != transitive_parameters_child.generator_name:
-        continue
-      if cc_library_child.generator_name != child_node.generator_name:
-        continue
-
-      cc_header_only_triplets.append(
-          (child_node, cc_library_child, transitive_parameters_child))
-
-    for hdrs_node, cc_node, parameters_node in cc_header_only_triplets:
-      new_node = cc_node.duplicate(self._cc_header_only_library, "", "")
-
-      for j in range(len(new_node.label_list_args["deps"])):
-        if str(new_node.label_list_args["deps"][j]) == str(parameters_node):
-          new_node.label_list_args["deps"].pop(j)
-          break
-
-      new_node.label_list_args["extra_deps"] = new_node.label_list_args["deps"]
-      new_node.label_list_args["deps"] = list(hdrs_node.label_list_args["deps"])
-      del new_node.label_list_args["hdrs"]
-      del node.children[str(hdrs_node)]
-      del node.children[str(parameters_node)]
-      del node.children[str(cc_node)]
-      node.children[str(new_node)] = new_node
-
-
-class GenerateCcTransformer(RuleTransformer):
-  def __init__(self) -> None:
-    self._generate_cc: Rule = TfRules.rules()["generate_cc"]
-    self._private_generate_cc: Rule = TfRules.rules()["_generate_cc"]
-
-  def transform(self, repo_root: RepositoryNode) -> List[TargetNode]:
-    self._fix_generate_cc_kind(repo_root)
-    return []
-
-  def _fix_generate_cc_kind(self, node: Node) -> None:
-    if isinstance(node, ContainerNode):
-      for child in cast(ContainerNode, node).children.values():
-        self._fix_generate_cc_kind(child)
-    elif node.kind == self._private_generate_cc:
-      target_node = cast(TargetNode, node)
-      target_node.kind = self._generate_cc
-      well_known_protos_arg: Optional[
-        TargetNode] = target_node.label_args.get(
-          "well_known_protos")
-      if well_known_protos_arg:
-        target_node.bool_args["well_known_protos"] = True
-        del target_node.bool_args["well_known_protos"]
-      else:
-        target_node.bool_args["well_known_protos"] = False
+# class GenerateCcTransformer(RuleTransformer):
+#   def __init__(self) -> None:
+#     self._generate_cc: Rule = TfRules.rules()["generate_cc"]
+#     self._private_generate_cc: Rule = TfRules.rules()["_generate_cc"]
+#
+#   def transform(self, repo_root: RepositoryNode) -> List[TargetNode]:
+#     self._fix_generate_cc_kind(repo_root)
+#     return []
+#
+#   def _fix_generate_cc_kind(self, node: Node) -> None:
+#     if isinstance(node, ContainerNode):
+#       for child in cast(ContainerNode, node).children.values():
+#         self._fix_generate_cc_kind(child)
+#     elif node.kind == self._private_generate_cc:
+#       target_node = cast(TargetNode, node)
+#       target_node.kind = self._generate_cc
+#       well_known_protos_arg: Optional[
+#         TargetNode] = target_node.label_args.get(
+#           "well_known_protos")
+#       if well_known_protos_arg:
+#         target_node.bool_args["well_known_protos"] = True
+#         del target_node.bool_args["well_known_protos"]
+#       else:
+#         target_node.bool_args["well_known_protos"] = False
 
 
 class CcLibraryMerger(RuleTransformer):
@@ -286,8 +286,8 @@ class CcSharedLibraryMerger(CcLibraryMerger):
 
     repo_root[str(internal_cc_library)] = internal_cc_library
     tree_builder: PackageTree = PackageTree()
-    tree_builder.replace_target(repo_root, str(root_target),
-                                agg_cc_shared_library)
+    tree_builder.replace_targets(repo_root,
+                                 {str(root_target): agg_cc_shared_library})
 
     # repo_root[str(agg_cc_shared_library)] = agg_cc_shared_library
 
@@ -321,3 +321,331 @@ class ChainedCcLibraryMerger(RuleTransformer):
       rv.extend(transformer.transform(repo_root))
 
     return rv
+
+
+class TrivialPrivateRuleToPublicMacroTransformer(RuleTransformer):
+  def __init__(self) -> None:
+    self._generating_macros: Dict[
+      str, Callable[
+        [PackageNode, Dict[Rule, List[TargetNode]]], List[TargetNode]]] = {}
+
+    self._genrule: Rule = BuiltInRules.rules()["genrule"]
+    self._filegroup: Rule = BuiltInRules.rules()["filegroup"]
+    self._py_library: Rule = BuiltInRules.rules()["py_library"]
+    self._cc_library: Rule = BuiltInRules.rules()["cc_library"]
+
+    self._private_empty_test: Rule = TfRules.rules()["_empty_test"]
+    self.build_test: Rule = BuiltInRules.rules()["build_test"]
+    self._generating_macros[self.build_test.kind] = self._transform_build_test
+
+    self._private_filegroup_as_file: Rule = TfRules.rules()[
+      "_filegroup_as_file"]
+    self._filegroup_as_file: Rule = TfRules.rules()["filegroup_as_file"]
+    self._generating_macros[
+      self._filegroup_as_file.kind] = self._transform_filegroup_as_file
+
+    self._private_pkg_tar_impl: Rule = BuiltInRules.rules()["pkg_tar_impl"]
+    self._pkg_tar: Rule = BuiltInRules.rules()["pkg_tar"]
+    self._generating_macros[self._pkg_tar.kind] = self._transform_pkg_tar
+
+    self._flatbuffer_py_library: Rule = TfRules.rules()["flatbuffer_py_library"]
+    self._private_concat_flatbuffer_py_srcs: Rule = TfRules.rules()[
+      "_concat_flatbuffer_py_srcs"]
+    self._private_gen_flatbuffer_srcs: Rule = TfRules.rules()[
+      "_gen_flatbuffer_srcs"]
+    self._generating_macros[
+      self._flatbuffer_py_library.kind] = self._transform_flatbuffer_py_library
+
+    self._private_transitive_hdrs: Rule = TfRules.rules()["_transitive_hdrs"]
+    self._private_transitive_parameters_library: Rule = TfRules.rules()[
+      "_transitive_parameters_library"]
+    self._cc_header_only_library: Rule = TfRules.rules()[
+      "cc_header_only_library"]
+    self._generating_macros[
+      self._cc_header_only_library.kind] = self._transform_cc_header_only_library
+    self._generating_macros[
+      "tf_profiler_pybind_cc_library_wrapper"] = self._transform_cc_header_only_library
+    self._generating_macros[
+      "tf_pybind_cc_library_wrapper_opensource"] = self._transform_cc_header_only_library
+
+    self._transitive_hdrs: Rule = TfRules.rules()["transitive_hdrs"]
+    self._generating_macros[
+      self._transitive_hdrs.kind] = self._transform_transitive_hdrs
+
+    self._private_generate_cc: Rule = TfRules.rules()["_generate_cc"]
+    self._generate_cc: Rule = TfRules.rules()["generate_cc"]
+    # two possible generating functions for the same rule
+    self._generating_macros[
+      self._generate_cc.kind] = self._transform_generate_cc
+    self._generating_macros["tf_proto_library"] = self._transform_generate_cc
+    self._generating_macros["cc_grpc_library"] = self._transform_generate_cc
+
+    self._private_local_genrule_internal = TfRules.rules()[
+      "_local_genrule_internal"]
+    self._tf_py_build_info_genrule = TfRules.rules()["tf_py_build_info_genrule"]
+    self._generating_macros[
+      self._tf_py_build_info_genrule.kind] = self._transform_tf_py_build_info_genrule
+
+    self._tf_version_info_genrule = TfRules.rules()["tf_version_info_genrule"]
+    self._generating_macros[
+      self._tf_version_info_genrule.kind] = self._transform_tf_version_info_genrule
+
+    self._private_tfcompile_model_library = TfRules.rules()[
+      "_tfcompile_model_library"]
+    self._tfcompile_model_library = TfRules.rules()["tfcompile_model_library"]
+    self._generating_macros[
+      "tf_library"] = self._transform_tfcompile_model_library
+
+  def transform(self, repo_root: RepositoryNode) -> List[TargetNode]:
+    new_tagets: List[TargetNode] = []
+    for child in repo_root.get_containers():
+      self._dfs_packages(cast(PackageNode, child), new_tagets)
+
+    new_tagets_dict: Dict[str, TargetNode] = {str(t): t for t in new_tagets}
+
+    tree_builder: PackageTree = PackageTree()
+    tree_builder.replace_targets(repo_root, new_tagets_dict)
+
+    return new_tagets
+
+  def _dfs_packages(self, pkg: PackageNode, new_tagets: List[TargetNode]):
+    for child in pkg.get_containers():
+      self._dfs_packages(cast(PackageNode, child), new_tagets)
+
+    generated_targets: Dict[str, Dict[str, Dict[Rule, List[TargetNode]]]] = {}
+
+    for target in pkg.get_targets():
+      if target.generator_function and target.generator_function in self._generating_macros:
+        generated_targets.setdefault(target.generator_function, {}).setdefault(
+            target.generator_name, {}).setdefault(target.kind, []).append(
+            target)
+
+    for gen_function, gen_rules in generated_targets.items():
+      for gen_name, merger_func_params in gen_rules.items():
+        new_tagets.extend(
+            self._generating_macros[gen_function](pkg, merger_func_params))
+
+    # update graph references
+
+  def _transform_build_test(self, package: PackageNode,
+      targets: Dict[Rule, List[TargetNode]]) -> List[TargetNode]:
+    targets_param: List[TargetNode] = []
+
+    if self._private_empty_test not in targets:
+      # this is another build_test macro (macro name collision):
+      return []
+
+    build_test: TargetNode = targets[self._private_empty_test][0].duplicate(
+        self.build_test, None, None)
+    build_test.generator_name = ""
+    build_test.generator_function = ""
+    del build_test.bool_args["is_windows"]
+    del build_test.label_list_args["data"]
+
+    for genrule_target in targets[self._genrule]:
+      targets_param.extend(genrule_target.label_list_args["srcs"])
+      for reused_arg in ["compatible_with", "restricted_to", "tags"]:
+        if reused_arg in genrule_target.label_list_args:
+          build_test.label_list_args[reused_arg] = \
+            genrule_target.label_list_args[reused_arg]
+
+    build_test.label_list_args["targets"] = targets_param
+
+    for old_targets in targets.values():
+      for old_target in old_targets:
+        del package[str(old_target)]
+
+    package[str(build_test)] = build_test
+
+    return [build_test]
+
+  def _transform_filegroup_as_file(self, package: PackageNode,
+      targets: Dict[Rule, List[TargetNode]]) -> List[TargetNode]:
+
+    _filegroup_as_file: TargetNode = targets[self._private_filegroup_as_file][0]
+    filegroup: TargetNode = targets[self._filegroup][0]
+
+    filegroup_as_file: TargetNode = _filegroup_as_file.duplicate(
+        self._filegroup_as_file, None, None)
+
+    del package[str(_filegroup_as_file)]
+    del package[str(filegroup)]
+
+    package[str(filegroup_as_file)] = filegroup_as_file
+
+    return [filegroup_as_file]
+
+  def _transform_pkg_tar(self, package: PackageNode,
+      targets: Dict[Rule, List[TargetNode]]) -> List[TargetNode]:
+
+    pkg_tar_impl: TargetNode = targets[self._private_pkg_tar_impl][0]
+
+    pkg_tar: TargetNode = pkg_tar_impl.duplicate(self._pkg_tar, None, None)
+    del pkg_tar.bool_args["private_stamp_detect"]
+    del package[str(pkg_tar_impl)]
+
+    package[str(pkg_tar)] = pkg_tar
+
+    return [pkg_tar]
+
+  def _transform_flatbuffer_py_library(self, package: PackageNode,
+      targets: Dict[Rule, List[TargetNode]]) -> List[TargetNode]:
+
+    _gen_flatbuffer_srcs: List[TargetNode] = targets[
+      self._private_gen_flatbuffer_srcs]
+    _concat_flatbuffer_py_srcs: TargetNode = \
+      targets[self._private_concat_flatbuffer_py_srcs][0]
+
+    py_library: TargetNode = targets[self._py_library][0]
+
+    flatbuffer_py_library: TargetNode = TargetNode(self._flatbuffer_py_library,
+                                                   py_library.name,
+                                                   py_library.get_parent_label())
+
+    flatbuffer_py_library.label_list_args["srcs"] = \
+      _gen_flatbuffer_srcs[0].label_list_args["srcs"]
+    deps: Optional[
+      List[TargetNode]] = _gen_flatbuffer_srcs[0].label_list_args.get("deps")
+    if deps:
+      flatbuffer_py_library.label_list_args["deps"] = deps
+    include_paths: Optional[
+      List[str]] = _gen_flatbuffer_srcs[0].string_list_args.get("include_paths")
+    if include_paths:
+      flatbuffer_py_library.string_list_args["include_paths"] = include_paths
+
+    del package[str(_gen_flatbuffer_srcs[0])]
+    if len(_gen_flatbuffer_srcs) > 1:
+      del package[str(_gen_flatbuffer_srcs[1])]
+    del package[str(_concat_flatbuffer_py_srcs)]
+
+    package[str(flatbuffer_py_library)] = flatbuffer_py_library
+
+    return [flatbuffer_py_library]
+
+  def _transform_cc_header_only_library(self, package: PackageNode,
+      targets: Dict[Rule, List[TargetNode]]) -> List[TargetNode]:
+
+    _transitive_hdrs: TargetNode = targets[self._private_transitive_hdrs][0]
+    _transitive_parameters_library: TargetNode = \
+      targets[self._private_transitive_parameters_library][0]
+    cc_library: TargetNode = targets[self._cc_library][0]
+
+    cc_header_only_library: TargetNode = cc_library.duplicate(
+        self._cc_header_only_library, None, None)
+    del cc_header_only_library.label_list_args["hdrs"]
+
+    deps_arg: List[TargetNode] = cc_header_only_library.label_list_args["deps"]
+    for j in range(len(deps_arg)):
+      if str(deps_arg[j]) == str(_transitive_parameters_library):
+        deps_arg.pop(j)
+        break
+
+    cc_header_only_library.label_list_args["extra_deps"] = \
+      cc_header_only_library.label_list_args["deps"]
+    cc_header_only_library.label_list_args["deps"] = list(
+        _transitive_hdrs.label_list_args["deps"])
+
+    del package[str(_transitive_hdrs)]
+    del package[str(_transitive_parameters_library)]
+    del package[str(cc_library)]
+
+    package[str(cc_header_only_library)] = cc_header_only_library
+
+    return [cc_header_only_library]
+
+  def _transform_generate_cc(self, package: PackageNode,
+      targets: Dict[Rule, List[TargetNode]]) -> List[TargetNode]:
+
+    if self._private_generate_cc not in targets:
+      # must be tf_proto_library macro, not all of them call _generate_cc
+      return []
+
+    _generate_cc: TargetNode = targets[self._private_generate_cc][0]
+    generate_cc: TargetNode = _generate_cc.duplicate(self._generate_cc, None,
+                                                     None)
+
+    well_known_protos_arg: Optional[
+      TargetNode] = generate_cc.label_args.get(
+        "well_known_protos")
+    if well_known_protos_arg:
+      generate_cc.bool_args["well_known_protos"] = True
+      del generate_cc.bool_args["well_known_protos"]
+    else:
+      generate_cc.bool_args["well_known_protos"] = False
+
+    del package[str(_generate_cc)]
+    package[str(generate_cc)] = generate_cc
+
+    return [generate_cc]
+
+  def _transform_transitive_hdrs(self, package: PackageNode,
+      targets: Dict[Rule, List[TargetNode]]) -> List[TargetNode]:
+
+    _transitive_hdrs: TargetNode = targets[self._private_transitive_hdrs][0]
+    filegroup: TargetNode = targets[self._filegroup][0]
+
+    transitive_hdrs: TargetNode = TargetNode(self._transitive_hdrs,
+                                             filegroup.name,
+                                             filegroup.get_parent_label())
+    transitive_hdrs.label_list_args["deps"] = _transitive_hdrs.label_list_args[
+      "deps"]
+
+    del package[str(_transitive_hdrs)]
+    del package[str(filegroup)]
+
+    package[str(transitive_hdrs)] = transitive_hdrs
+
+    return [transitive_hdrs]
+
+  def _transform_tf_py_build_info_genrule(self, package: PackageNode,
+      targets: Dict[Rule, List[TargetNode]]) -> List[TargetNode]:
+
+    _local_genrule_internal: TargetNode = \
+      targets[self._private_local_genrule_internal][0]
+    tf_py_build_info_genrule: TargetNode = TargetNode(
+        self._tf_py_build_info_genrule, _local_genrule_internal.name,
+        _local_genrule_internal.get_parent_label())
+
+    tf_py_build_info_genrule.out_label_args["out"] = \
+      _local_genrule_internal.out_label_args["out"]
+
+    del package[str(_local_genrule_internal)]
+    package[str(tf_py_build_info_genrule)] = tf_py_build_info_genrule
+
+    return [tf_py_build_info_genrule]
+
+  def _transform_tf_version_info_genrule(self, package: PackageNode,
+      targets: Dict[Rule, List[TargetNode]]) -> List[TargetNode]:
+
+    _local_genrule_internal: TargetNode = \
+      targets[self._private_local_genrule_internal][0]
+    tf_version_info_genrule: TargetNode = TargetNode(
+        self._tf_version_info_genrule, _local_genrule_internal.name,
+        _local_genrule_internal.get_parent_label())
+
+    tf_version_info_genrule.out_label_args["out"] = \
+      _local_genrule_internal.out_label_args["out"]
+
+    del package[str(_local_genrule_internal)]
+    package[str(tf_version_info_genrule)] = tf_version_info_genrule
+
+    return [tf_version_info_genrule]
+
+  def _transform_tfcompile_model_library(self, package: PackageNode,
+      targets: Dict[Rule, List[TargetNode]]) -> List[TargetNode]:
+    # Ho is this possible?
+    if self._private_tfcompile_model_library not in targets:
+      return []
+
+    new_targets: List[TargetNode] = []
+
+    for _private_tfcompile_model_library in targets[
+      self._private_tfcompile_model_library]:
+      _tfcompile_model_library: TargetNode = _private_tfcompile_model_library.duplicate(
+          self._tfcompile_model_library, None, None)
+
+      del package[str(_private_tfcompile_model_library)]
+      package[str(_tfcompile_model_library)] = _tfcompile_model_library
+      new_targets.append(_tfcompile_model_library)
+
+    return new_targets

@@ -177,11 +177,16 @@ class BuildTargetsPrinter:
     if node.generator_name:
       generator_info = f"\n# generator_function = {node.generator_function}\n# generator_name = {node.generator_name}"
 
+    visiblity_block = ""
+    if node.kind.visibility:
+      visiblity_block = '    visibility = ["//visibility:public"],'
+
+    # visiblity_block = '    visibility = ["//visibility:public"],'
+
     target = f"""
 # {node}{generator_info}
 {node.kind}(
-    name = "{node.name}",{list_args_block}{string_args_block}{bool_args_block}{map_args_block}
-    visibility = ["//visibility:public"],
+    name = "{node.name}",{list_args_block}{string_args_block}{bool_args_block}{map_args_block}{visiblity_block}
 )"""
     return [target]
 
@@ -220,8 +225,8 @@ class BuildTargetsPrinter:
       sort_vals: bool) -> str:
     list_args_strs: List[str] = []
     for list_arg_name, list_arg_values in list_args.items():
-      if not list_arg_values:
-        continue
+      if len(list_arg_values) == 0:
+        arg_str = f"    {list_arg_name} = [],"
       elif len(list_arg_values) == 1:
         arg_str = f"    {list_arg_name} = [\"{list_arg_values[0]}\"],"
       else:

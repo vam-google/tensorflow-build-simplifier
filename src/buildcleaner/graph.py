@@ -130,29 +130,39 @@ class PackageTree:
 
     return internal_root, external_root
 
-  def replace_target(self, container: ContainerNode, old_target_label: str,
-      new_target: TargetNode) -> None:
-    if old_target_label in container.children:
-      del container.children[old_target_label]
-      container.children[str(new_target)] = new_target
+  def replace_targets(self, container: ContainerNode,
+      new_targets: Dict[str, TargetNode]) -> None:
+    children_to_replace: List[TargetNode] = []
+    for child in container.children.values():
+      if isinstance(child, ContainerNode):
+        self.replace_targets(cast(ContainerNode, child), new_targets)
+      if not isinstance(child, TargetNode):
+        continue
 
-    for container_child in container.get_containers():
-      self.replace_target(container_child, old_target_label, new_target)
+      target_child: TargetNode = cast(TargetNode, child)
 
-    for target_child in container.get_targets():
+      if target_child.label in new_targets:
+        children_to_replace.append(target_child)
+        continue
+
+      new_target: Optional[TargetNode]
+
       for label_arg_list in target_child.label_list_args.values():
         for i in range(len(label_arg_list)):
-          if str(label_arg_list[i]) == old_target_label:
+          new_target = new_targets.get(str(label_arg_list[i]))
+          if new_target:
             label_arg_list[i] = new_target
             # there can be no label duplicates in same arg
             break
 
       labels_to_replace: List[str] = []
       for arg_name, label_arg in target_child.label_args.items():
-        if str(label_arg) == old_target_label:
+        new_target = new_targets.get(str(label_arg))
+        if new_target:
           labels_to_replace.append(arg_name)
       for label_to_replace in labels_to_replace:
-        target_child.label_args[label_to_replace] = new_target
+        target_child.label_args[label_to_replace] = new_targets[
+          str(target_child.label_args[label_to_replace])]
 
 
 class TargetDagBuilder(TargetDag):

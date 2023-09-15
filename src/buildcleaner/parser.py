@@ -58,13 +58,13 @@ class BazelBuildTargetsParser:
   def _init_args_parsers(self, rule: Rule) -> None:
     for arg in rule.label_list_args:
       self._arg_label_list_regex[arg] = re.compile(
-          fr"\b{arg}\b\s*=\s*\[(?P<values>.+)\][,\s]*\n")
+          fr"\b{arg}\b\s*=\s*\[(?P<values>.*)\][,\s]*\n")
     for arg in rule.label_args:
       self._arg_label_regex[arg] = re.compile(
           fr"\b{arg}\b\s*=\s*\"(?P<value>.*)\"")
     for arg in rule.string_list_args:
       self._arg_string_list_regex[arg] = re.compile(
-          fr"\b{arg}\b\s*=\s*\[(?P<values>.+)\][,\s]*\n")
+          fr"\b{arg}\b\s*=\s*\[(?P<values>.*)\][,\s]*\n")
     for arg in rule.string_args:
       self._arg_string_regex[arg] = re.compile(
           fr"\b{arg}\b\s*=\s*\"(?P<value>.*)\"")
@@ -176,14 +176,18 @@ class BazelBuildTargetsParser:
         node.generator_function = generator_function.group("value")
       t: str
       match: Optional[Match[str]]
+      values: Optional[str]
       t_node: TargetNode
       for label_list_arg in rule.label_list_args:
         match = self._arg_label_list_regex[label_list_arg].search(target_rule)
         if match:
-          for arg_value in match.group("values").split(", "):
-            t = self._normalize_value(arg_value)
-            t_node = TargetNode.create_stub(t)
-            node.label_list_args.setdefault(label_list_arg, []).append(t_node)
+          values = match.group("values")
+          node.label_list_args.setdefault(label_list_arg, [])
+          if values:
+            for arg_value in values.split(", "):
+              t = self._normalize_value(arg_value)
+              t_node = TargetNode.create_stub(t)
+              node.label_list_args[label_list_arg].append(t_node)
 
       for label_arg in rule.label_args:
         match = self._arg_label_regex[label_arg].search(target_rule)
@@ -195,9 +199,12 @@ class BazelBuildTargetsParser:
       for string_list_arg in rule.string_list_args:
         match = self._arg_string_list_regex[string_list_arg].search(target_rule)
         if match:
-          for arg_value in match.group("values").split('", "'):
-            t = self._normalize_value(arg_value)
-            node.string_list_args.setdefault(string_list_arg, []).append(t)
+          values = match.group("values")
+          node.string_list_args.setdefault(string_list_arg, [])
+          if values:
+            for arg_value in values.split('", "'):
+              t = self._normalize_value(arg_value)
+              node.string_list_args[string_list_arg].append(t)
 
       for string_arg in rule.string_args:
         match = self._arg_string_regex[string_arg].search(target_rule)

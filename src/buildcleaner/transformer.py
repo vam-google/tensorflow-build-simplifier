@@ -102,12 +102,23 @@ class AliasReplacer(RuleTransformer):
 
     for target_child in container.get_targets():
       for label_arg_list in target_child.label_list_args.values():
+        check_for_duplicates = False
         for i in range(len(label_arg_list)):
           if label_arg_list[i].kind != self._alias:
             continue
           alias = label_arg_list[i]
           label_arg_list[i] = self._resolve_alias(label_arg_list[i])
           self._fix_genrule_cmd(alias, label_arg_list[i], target_child)
+          check_for_duplicates = True
+        # after replacing alias the argument list may start containing multiple
+        # same entries, as duplicates were possible through aliasing the same
+        # target under different names
+        if check_for_duplicates:
+          label_arg_dict: Dict[str, TargetNode] = {str(l): l for l in
+                                                   label_arg_list}
+          if len(label_arg_dict) != len(label_arg_list):
+            label_arg_list.clear()
+            label_arg_list.extend(label_arg_dict.values())
 
       labels_to_replace: List[str] = []
       for arg_name, label_arg in target_child.label_args.items():

@@ -15,7 +15,9 @@ class Rule:
       out_label_list_args: Sequence[str] = (),
       out_label_args: Sequence[str] = (),
       import_statement: str = "",
-      outputs: Sequence[str] = ()) -> None:
+      outputs: Sequence[str] = (),
+      macro: bool = False,
+      visibility: bool = True) -> None:
     self.kind: str = kind
     self.label_list_args: Sequence[str] = label_list_args
     self.label_args: Sequence[str] = label_args
@@ -30,6 +32,11 @@ class Rule:
     # For simplicity, we support only {name} substitution in outputs.
     # Support other parameters subsitutions if ever needed
     self.outputs: Sequence[str] = outputs
+    self.macro: bool = macro
+
+    # Visibility should not be here, its a hack, remove once visiblity is
+    # handled properly
+    self.visibility = visibility
 
   def __str__(self) -> str:
     return self.kind
@@ -84,8 +91,11 @@ class BuiltInRules:
       "test_suite": Rule(kind="test_suite", label_list_args=["tests"],
                          string_list_args=["tags"]),
       "genrule": Rule(kind="genrule", label_list_args=["srcs", "tools",
-                                                       "target_compatible_with"],
+                                                       "target_compatible_with",
+                                                       "restricted_to"],
+                      string_list_args=["tags"],
                       string_args=["cmd"], out_label_list_args=["outs"]),
+      "generated": Rule(kind="generated"),
       "alias": Rule(kind="alias", label_args=["actual"]),
       "config_setting": Rule(kind="config_setting",
                              str_str_map_args=["values", "flag_values",
@@ -100,6 +110,7 @@ class BuiltInRules:
       "sh_test": Rule(kind="sh_test", label_list_args=["srcs", "data"],
                       string_list_args=["args", "tags"], string_args=["size"],
                       int_args=["shard_count"], ),
+
       #
       # Marginaly importan (not needed?) rules, occur a few times among in 20k+
       # total targets.
@@ -115,6 +126,15 @@ class BuiltInRules:
                                 string_list_args=["exports_filter",
                                                   "user_link_flags"],
                                 string_args=["shared_lib_name"]),
+      "pkg_tar_impl": Rule(kind="pkg_tar_impl",
+                           label_list_args=["srcs", "deps"],
+                           label_args=["package_dir_file"],
+                           string_list_args=["tags"],
+                           string_args=["extension", "package_dir",
+                                        "strip_prefix", "extension"],
+                           out_label_args=["out"],
+                           bool_args=["private_stamp_detect"],
+                           str_str_map_args=["symlinks"]),
       "java_test": Rule(kind="java_test", label_list_args=["deps", "srcs"],
                         string_list_args=["javacopts"],
                         string_args=["size", "test_class"]),
@@ -141,7 +161,23 @@ class BuiltInRules:
                               import_statement='load("@bazel_skylib//rules:expand_template.bzl", "expand_template")'),
       "cc_proto_library": Rule(kind="cc_proto_library",
                                label_list_args=["deps", "compatible_with"]),
-      "generated": Rule(kind="generated"),
+
+      #
+      # Macros
+      #
+      "build_test": Rule(kind="build_test", label_list_args=["targets"],
+                         macro=True,
+                         import_statement='load("@bazel_skylib//rules:build_test.bzl", "build_test")'),
+      "pkg_tar": Rule(kind="pkg_tar",
+                      label_list_args=["srcs", "deps"],
+                      label_args=["package_dir_file"],
+                      string_list_args=["tags"],
+                      string_args=["extension", "package_dir",
+                                   "strip_prefix", "extension"],
+                      out_label_args=["out"],
+                      str_str_map_args=["symlinks"],
+                      macro=True),
+
   }
 
   @staticmethod
