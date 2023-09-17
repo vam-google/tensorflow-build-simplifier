@@ -4,6 +4,7 @@ from typing import cast
 
 from buildcleaner.config import BaseTargetsConfig
 from buildcleaner.graph import PackageTree
+from buildcleaner.graph import TargetDag
 from buildcleaner.node import RepositoryNode
 from buildcleaner.node import RootNode
 from buildcleaner.node import TargetNode
@@ -73,9 +74,10 @@ class TargetsCollector:
 
       # The only allowed unresolved references are the ones which were excluded by
       # excluded_targets.
+      tree: TargetDag = TargetDag()
       unresolved_targets: Dict[
-        TargetNode, List[str]] = self._get_unresolved_targets(all_nodes,
-                                                              excluded_prefixes)
+        TargetNode, List[str]] = tree.get_unresolved_targets(all_nodes.values(),
+                                                             excluded_prefixes)
 
       unresolved_labels = [str(k) for k, _ in unresolved_targets.items()]
 
@@ -98,60 +100,6 @@ class TargetsCollector:
       package_prefixes.append(t.replace("/...", "").split(":")[0])
 
     return package_prefixes
-
-  def _get_unresolved_targets(self, all_nodes: Dict[str, TargetNode],
-      excluded_package_prefixes: List[str]) -> Dict[TargetNode, List[str]]:
-    unresolved_targets: Dict[TargetNode, List[str]] = {}
-    alien_targets: Dict[TargetNode, List[str]] = {}
-    for node in all_nodes.values():
-      if node.is_stub() and not node.is_external():
-        if self._node_belongs_to_excluded_package(node,
-                                                  excluded_package_prefixes):
-          unresolved_targets.setdefault(node, []).append(str(node))
-        else:
-          alien_targets.setdefault(node, []).append(str(node))
-
-      for ref_target in node.get_targets():
-        if ref_target.is_stub() and not ref_target.is_external():
-          if self._node_belongs_to_excluded_package(ref_target,
-                                                    excluded_package_prefixes):
-            unresolved_targets.setdefault(ref_target, []).append(str(node))
-          else:
-            alien_targets.setdefault(ref_target, []).append(str(node))
-
-    alien_strs = []
-    if alien_targets:
-      for t, referenced_from_t in alien_targets.items():
-        referenced_from_str: str = ", ".join(referenced_from_t)
-        alien_strs.append(f"{t} <- [{referenced_from_str}]")
-      alien_strs.sort()
-      alien_str = '\n'.join(alien_strs)
-      raise ValueError(
-          f"Alien targets found:\n\n{alien_str} \n Total unresolved targets: {len(alien_strs)}")
-
-    return unresolved_targets
-
-  def _node_belongs_to_excluded_package(self, node: TargetNode,
-      excluded_package_prefixes: List[str]) -> bool:
-    for excluded_package_prefix in excluded_package_prefixes:
-      if node.label.startswith(excluded_package_prefix):
-        if node.label[len(excluded_package_prefix)] in [":", "/"]:
-          return True
-    return False
-
-  # def _resolve_references(self, all_nodes: Dict[str, TargetNode],
-  #     nodes_by_kind: Dict[str, Dict[str, TargetNode]]) -> Dict[str, TargetNode]:
-  #   new_all_nodes: Dict[str, TargetNode] = self.resolve_label_references(
-  #       all_nodes, nodes_by_kind["source"])
-  #   new_all_nodes.update(all_nodes)
-  #
-  #   # Make sure nodes_by_kind and all_nodes share the same node references for
-  #   # the same label
-  #   for node_key, node in new_all_nodes.items():
-  #     nodes_of_a_kind: Dict[str, TargetNode] = nodes_by_kind[node.kind.kind]
-  #     if nodes_of_a_kind:
-  #       nodes_of_a_kind[str(node)] = node
-  #   return new_all_nodes
 
   def resolve_label_references(self, nodes_dict: Dict[str, TargetNode],
       files_dict: Dict[str, TargetNode]) -> Dict[str, TargetNode]:

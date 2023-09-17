@@ -2,6 +2,7 @@ from buildcleaner.build import Build
 from buildcleaner.config import ArtifactTargetsConfig
 from buildcleaner.config import BaseTargetsConfig
 from buildcleaner.config import MergedTargetsConfig
+from buildcleaner.graph import TargetDag
 from buildcleaner.parser import BazelBuildTargetsParser
 from buildcleaner.rule import BuiltInRules
 from buildcleaner.tensorflow.rule import TfRules
@@ -32,3 +33,6 @@ class TfBuild(Build):
     if artifact_targets.prune_unreachable:
       UnreachableTargetsRemover(artifact_targets.targets).transform(
           self.repo_root())
+
+    dag: TargetDag = TargetDag()
+    dag.get_unresolved_targets(self.repo_root().tree_nodes(), [])

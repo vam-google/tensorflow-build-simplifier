@@ -80,6 +80,49 @@ class TargetDag:
   def is_removable_node(self, node: Node) -> bool:
     return not isinstance(node, (FileNode, GeneratedFileNode, ContainerNode))
 
+  def get_unresolved_targets(self, all_nodes: Iterable[Node],
+      excluded_package_prefixes: List[str]) -> Dict[TargetNode, List[str]]:
+    unresolved_targets: Dict[TargetNode, List[str]] = {}
+    alien_targets: Dict[TargetNode, List[str]] = {}
+    for node in all_nodes:
+      if not isinstance(node, TargetNode):
+        continue
+      target_node = cast(TargetNode, node)
+      if target_node.is_stub() and not target_node.is_external():
+        if self._node_belongs_to_excluded_package(target_node,
+                                                  excluded_package_prefixes):
+          unresolved_targets.setdefault(target_node, []).append(str(node))
+        else:
+          alien_targets.setdefault(target_node, []).append(str(node))
+
+      for ref_target in target_node.get_targets():
+        if ref_target.is_stub() and not ref_target.is_external():
+          if self._node_belongs_to_excluded_package(ref_target,
+                                                    excluded_package_prefixes):
+            unresolved_targets.setdefault(ref_target, []).append(str(node))
+          else:
+            alien_targets.setdefault(ref_target, []).append(str(node))
+
+    alien_strs = []
+    if alien_targets:
+      for t, referenced_from_t in alien_targets.items():
+        referenced_from_str: str = ", ".join(referenced_from_t)
+        alien_strs.append(f"{t} <- [{referenced_from_str}]")
+      alien_strs.sort()
+      alien_str = '\n'.join(alien_strs)
+      raise ValueError(
+          f"Alien targets found:\n\n{alien_str} \n Total unresolved targets: {len(alien_strs)}")
+
+    return unresolved_targets
+
+  def _node_belongs_to_excluded_package(self, node: TargetNode,
+      excluded_package_prefixes: List[str]) -> bool:
+    for excluded_package_prefix in excluded_package_prefixes:
+      if node.label.startswith(excluded_package_prefix):
+        if node.label[len(excluded_package_prefix)] in [":", "/"]:
+          return True
+    return False
+
 
 class PackageTree:
   def __init__(self) -> None:
