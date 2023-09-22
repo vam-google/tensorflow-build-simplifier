@@ -21,92 +21,6 @@ from buildcleaner.tensorflow.rule import TfRules
 from buildcleaner.transformer import RuleTransformer
 
 
-# class CcHeaderOnlyLibraryTransformer(RuleTransformer):
-#   def __init__(self) -> None:
-#     self._cc_header_only_library: Rule = TfRules.rules()[
-#       "cc_header_only_library"]
-#     self._transitive_hdrs: Rule = TfRules.rules()["_transitive_hdrs"]
-#     self._transitive_parameters_library: Rule = TfRules.rules()[
-#       "_transitive_parameters_library"]
-#
-#   def transform(self, repo_root: RepositoryNode) -> List[TargetNode]:
-#     self._merge_cc_header_only_library(repo_root)
-#     return []
-#
-#   def _merge_cc_header_only_library(self, node: ContainerNode) -> None:
-#     for child in node.get_containers():
-#       self._merge_cc_header_only_library(child)
-#
-#     transitive_hdrs: List[TargetNode] = list(
-#         node.get_targets(self._transitive_hdrs))
-#     if not transitive_hdrs:
-#       return
-#
-#     cc_header_only_triplets: List[
-#       Tuple[TargetNode, TargetNode, TargetNode]] = []
-#
-#     for child_node in transitive_hdrs:
-#       cc_library_name: str = child_node.name[:-len("_gather")]
-#       cc_library_child: Optional[TargetNode] = node.get_target(cc_library_name)
-#
-#       transitive_parameters_name: str = child_node.name[
-#                                         :-len("_gathered_parameters")]
-#       transitive_parameters_child: Optional[TargetNode] = node.get_target(
-#           transitive_parameters_name)
-#
-#       if not cc_library_child or not transitive_parameters_child:
-#         continue
-#       if cc_library_child.generator_name != transitive_parameters_child.generator_name:
-#         continue
-#       if cc_library_child.generator_name != child_node.generator_name:
-#         continue
-#
-#       cc_header_only_triplets.append(
-#           (child_node, cc_library_child, transitive_parameters_child))
-#
-#     for hdrs_node, cc_node, parameters_node in cc_header_only_triplets:
-#       new_node = cc_node.duplicate(self._cc_header_only_library, "", "")
-#
-#       for j in range(len(new_node.label_list_args["deps"])):
-#         if str(new_node.label_list_args["deps"][j]) == str(parameters_node):
-#           new_node.label_list_args["deps"].pop(j)
-#           break
-#
-#       new_node.label_list_args["extra_deps"] = new_node.label_list_args["deps"]
-#       new_node.label_list_args["deps"] = list(hdrs_node.label_list_args["deps"])
-#       del new_node.label_list_args["hdrs"]
-#       del node.children[str(hdrs_node)]
-#       del node.children[str(parameters_node)]
-#       del node.children[str(cc_node)]
-#       node.children[str(new_node)] = new_node
-
-
-# class GenerateCcTransformer(RuleTransformer):
-#   def __init__(self) -> None:
-#     self._generate_cc: Rule = TfRules.rules()["generate_cc"]
-#     self._private_generate_cc: Rule = TfRules.rules()["_generate_cc"]
-#
-#   def transform(self, repo_root: RepositoryNode) -> List[TargetNode]:
-#     self._fix_generate_cc_kind(repo_root)
-#     return []
-#
-#   def _fix_generate_cc_kind(self, node: Node) -> None:
-#     if isinstance(node, ContainerNode):
-#       for child in cast(ContainerNode, node).children.values():
-#         self._fix_generate_cc_kind(child)
-#     elif node.kind == self._private_generate_cc:
-#       target_node = cast(TargetNode, node)
-#       target_node.kind = self._generate_cc
-#       well_known_protos_arg: Optional[
-#         TargetNode] = target_node.label_args.get(
-#           "well_known_protos")
-#       if well_known_protos_arg:
-#         target_node.bool_args["well_known_protos"] = True
-#         del target_node.bool_args["well_known_protos"]
-#       else:
-#         target_node.bool_args["well_known_protos"] = False
-
-
 class CcLibraryMerger(RuleTransformer):
   def __init__(self, root_label: str, new_target_prefix: str,
       insert_new_targets: bool = True) -> None:
@@ -396,6 +310,13 @@ class TrivialPrivateRuleToPublicMacroTransformer(RuleTransformer):
     self._generating_macros[
       "tf_library"] = self._transform_tfcompile_model_library
 
+    self._private_append_init_to_versionscript = TfRules.rules()[
+      "_append_init_to_versionscript"]
+    self._append_init_to_versionscript = TfRules.rules()[
+      "append_init_to_versionscript"]
+    self._generating_macros[
+      "pywrap_tensorflow_macro_opensource"] = self._transform_append_init_to_versionscript
+
   def transform(self, repo_root: RepositoryNode) -> List[TargetNode]:
     new_tagets: List[TargetNode] = []
     for child in repo_root.get_containers():
@@ -647,5 +568,25 @@ class TrivialPrivateRuleToPublicMacroTransformer(RuleTransformer):
       del package[str(_private_tfcompile_model_library)]
       package[str(_tfcompile_model_library)] = _tfcompile_model_library
       new_targets.append(_tfcompile_model_library)
+
+    return new_targets
+
+  def _transform_append_init_to_versionscript(self, package: PackageNode,
+      targets: Dict[Rule, List[TargetNode]]) -> List[TargetNode]:
+    # Ho is this possible?
+    if self._private_append_init_to_versionscript not in targets:
+      return []
+
+    new_targets: List[TargetNode] = []
+
+    for _private_append_init_to_versionscript in targets[
+      self._private_append_init_to_versionscript]:
+      _append_init_to_versionscript: TargetNode = _private_append_init_to_versionscript.duplicate(
+          self._append_init_to_versionscript, None, None)
+
+      del package[str(_private_append_init_to_versionscript)]
+      package[
+        str(_append_init_to_versionscript)] = _append_init_to_versionscript
+      new_targets.append(_append_init_to_versionscript)
 
     return new_targets

@@ -13,10 +13,10 @@ class TfRules:
                           import_statement='load("@llvm-project//mlir:tblgen.bzl", "gentbl_rule")'),
       "proto_gen": Rule(kind="proto_gen",
                         label_list_args=["srcs", "deps"],
-                        label_args=["protoc"],
+                        label_args=["protoc", "plugin"],
                         string_list_args=["includes", "plugin_options"],
                         string_args=["plugin_language"],
-                        bool_args=["gen_cc"],
+                        bool_args=["gen_cc", "gen_py"],
                         out_label_list_args=["outs"],
                         import_statement='load("@com_google_protobuf//:protobuf.bzl", "proto_gen")'),
       "td_library": Rule(kind="td_library",
@@ -145,6 +145,7 @@ class TfRules:
       "tf_py_build_info_genrule": Rule(kind="tf_py_build_info_genrule",
                                        out_label_args=["out"],
                                        macro=True,
+                                       visibility=False,
                                        import_statement='load("//tensorflow:tensorflow.default.bzl", "tf_py_build_info_genrule")'),
       "tf_version_info_genrule": Rule(kind="tf_version_info_genrule",
                                       out_label_args=["out"],
@@ -170,7 +171,12 @@ class TfRules:
                                                  "gen_compiler_log"],
                                       out_label_args=["header_out"],
                                       import_statement='load("//tensorflow/compiler/aot:tfcompile.bzl", "tfcompile_model_library")'),
-
+      # public copy of _append_init_to_versionscript
+      "append_init_to_versionscript": Rule(
+          kind="append_init_to_versionscript", label_args=["template_file"],
+          string_args=["module_name"], bool_args=["is_version_script"],
+          outputs=["{}.lds"],
+          import_statement='load("//tensorflow:tensorflow.bzl", "append_init_to_versionscript")'),
   }
 
   _IGNORED_RULES: Dict[str, Rule] = {

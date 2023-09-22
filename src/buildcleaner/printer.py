@@ -179,14 +179,13 @@ class BuildTargetsPrinter:
 
     visiblity_block = ""
     if node.kind.visibility:
-      visiblity_block = '    visibility = ["//visibility:public"],'
-
-    # visiblity_block = '    visibility = ["//visibility:public"],'
+      visiblity_block = 'visibility = ["//visibility:public"],'
 
     target = f"""
 # {node}{generator_info}
 {node.kind}(
-    name = "{node.name}",{list_args_block}{string_args_block}{bool_args_block}{map_args_block}{visiblity_block}
+    name = "{node.name}",{list_args_block}{string_args_block}{bool_args_block}{map_args_block}
+    {visiblity_block}
 )"""
     return [target]
 

@@ -108,3 +108,38 @@ clang -I. -Xclang -ast-dump main.cc -fsyntax-only  -fno-color-diagnostics > _/ma
 clang -I. -Xclang -ast-dump main.cc -fsyntax-only  -fno-color-diagnostics | grep -P "(static cinit$)|(\)' static$)|(NamespaceDecl .* line:\d+:\d+$)"
 cat stderr-5 | grep -P "error: " | sed 's/:[0-9]*//g' | sort | uniq | sort -nr > sorted.txt
 cat stderr-5 | grep -P "error: " | cut -d ':' -f 1 | sort | uniq -c | sort -nr > sorted1.txt
+
+
+
+bazel cquery \
+  --config=pycpp_filters \
+  'deps(//tensorflow/python/data/... union //tensorflow/core/grappler/optimizers/data/... union //tensorflow/core/kernels/data/... )' \
+  --keep_going \
+  --output label_kind \
+  | grep " //" \
+  | sed 's, [^ ]*$,,' \
+  | sort \
+  | uniq \
+  | cut -d ' ' -f 1 \
+  | sort \
+  | awk '{gsub(/\n/," "); print $0}' \
+  | sort \
+  | uniq -c \
+  | sort -nr
+
+
+bazel cquery \
+  --config=pycpp_filters \
+  '//tensorflow/python/data/... union //tensorflow/core/grappler/optimizers/data/... union //tensorflow/core/kernels/data/...' \
+  --keep_going \
+  --output label_kind \
+  | grep " //" \
+  | sed 's, [^ ]*$,,' \
+  | sort \
+  | uniq \
+  | cut -d ' ' -f 1 \
+  | sort \
+  | awk '{gsub(/\n/," "); print $0}' \
+  | sort \
+  | uniq -c \
+  | sort -nr

@@ -266,16 +266,16 @@ class BazelBuildTargetsParser:
 
     return re.compile(fr"^{rule.kind}\(", re.MULTILINE), args_parser_cosure
 
-  def _normalize_value(self, target: str) -> str:
+  def _normalize_value(self, string: str) -> str:
     # This is very fragile and does not accomodate many potential corner cases
     # and escaped quotes in target itself, but it seems to be good enough on
     # practice. Improve if ever needed.
-    val = target.strip()
-    if val and val[0] == '"':
-      val = val[1:]
-    if val and val[-1] == '"':
-      val = val[:-1]
-    return val
+    v = string.strip()
+    if v and v[0] == '"':
+      v = v[1:]
+    if v and v[-1] == '"' and (len(v) < 2 or v[-2] != "\\"):
+      v = v[:-1]
+    return v
 
   def parse_query_label_kind_output(self, query_label_kind_output: str) -> Dict[
     str, Dict[str, TargetNode]]:
