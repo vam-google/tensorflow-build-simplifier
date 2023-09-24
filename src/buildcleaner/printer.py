@@ -32,6 +32,7 @@ class NodeComparators:
 
   def __init__(self, group_by_generator_name: bool) -> None:
     self.targets_in_container_key = cmp_to_key(self._compare_nodes_in_container)
+    self.printed_labels_key = cmp_to_key(self._compare_printed_labels)
     self._group_by_generator_name: bool = group_by_generator_name
 
   def _compare_nodes_in_container(self, left: Node, right: Node) -> int:
@@ -62,9 +63,18 @@ class NodeComparators:
       return 1
     return 0
 
-  def _compare_types(self, left: Node, right: Node):
+  def _compare_types(self, left: Node, right: Node) -> int:
     return self._compare_objects(NodeComparators._TYPE_ORDER[type(left)],
                                  NodeComparators._TYPE_ORDER[type(right)])
+
+  def _compare_printed_labels(self, left: str, right: str) -> int:
+    if left[0] == right[0]:
+      return self._compare_objects(left, right)
+    if left[0] == ":":
+      return -1
+    if right[0] == ":":
+      return 1
+    return self._compare_objects(left, right)
 
 
 class DebugTreePrinter:
@@ -121,15 +131,14 @@ class DebugTreePrinter:
 
 class BuildTargetsPrinter:
   def __init__(self) -> None:
-    self._targets_in_container_key = NodeComparators(
-        True).targets_in_container_key
+    self._comparator: NodeComparators = NodeComparators(True)
 
   def print_build_file(self, pkg_node: PackageNode) -> str:
     nodes: List[TargetNode] = []
     for t in pkg_node.get_targets():
       if type(t) == TargetNode:
         nodes.append(t)
-    nodes.sort(key=self._targets_in_container_key)
+    nodes.sort(key=self._comparator.targets_in_container_key)
 
     import_statements: Set[str] = set()
     targets: List[str] = []
@@ -230,7 +239,8 @@ class BuildTargetsPrinter:
         arg_str = f"    {list_arg_name} = [\"{list_arg_values[0]}\"],"
       else:
         list_arg_str_values = "\"" + "\",\n        \"".join(
-            sorted(list_arg_values) if sort_vals else list_arg_values) + "\","
+            sorted(list_arg_values,
+                   key=self._comparator.printed_labels_key) if sort_vals else list_arg_values) + "\","
         arg_str = f"""    {list_arg_name} = [
         {list_arg_str_values}
     ],"""

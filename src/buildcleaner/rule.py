@@ -80,7 +80,7 @@ class BuiltInRules:
                          label_list_args=["srcs", "deps", "data"],
                          label_args=["main"], string_list_args=["imports"],
                          string_args=["srcs_version"], bool_args=["testonly"]),
-      "filegroup": Rule(kind="filegroup", label_list_args=["srcs"],
+      "filegroup": Rule(kind="filegroup", label_list_args=["srcs", "data"],
                         string_args=["output_group"], bool_args=["testonly"]),
       "cc_binary": Rule(kind="cc_binary",
                         label_list_args=["srcs", "deps", "data"],
