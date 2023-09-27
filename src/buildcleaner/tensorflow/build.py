@@ -7,6 +7,7 @@ from buildcleaner.parser import BazelBuildTargetsParser
 from buildcleaner.rule import BuiltInRules
 from buildcleaner.tensorflow.rule import TfRules
 from buildcleaner.tensorflow.transformer import ChainedCcLibraryMerger
+from buildcleaner.tensorflow.transformer import TfNonsenseTransformer
 from buildcleaner.tensorflow.transformer import \
   TrivialPrivateRuleToPublicMacroTransformer
 from buildcleaner.transformer import AliasReplacer
@@ -25,11 +26,11 @@ class TfBuild(Build):
                                              TfRules.ignored_rules()))
 
     AliasReplacer().transform(self.repo_root())
-    # CcHeaderOnlyLibraryTransformer().transform(self.repo_root())
-    # GenerateCcTransformer().transform(self.repo_root())
     TrivialPrivateRuleToPublicMacroTransformer().transform(self.repo_root())
     ChainedCcLibraryMerger(merged_targets).transform(self.repo_root())
     ExportFilesTransformer().transform(self.repo_root())
+    TfNonsenseTransformer().transform(self.repo_root())
+
     if artifact_targets.prune_unreachable:
       UnreachableTargetsRemover(artifact_targets.targets).transform(
           self.repo_root())

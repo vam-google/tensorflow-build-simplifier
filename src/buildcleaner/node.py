@@ -239,6 +239,8 @@ class TargetNode(Node):
     self.generator_name: str = ""
     self.generator_function: str = ""
 
+    self.sort_labels = True
+
   def duplicate(self, kind: Optional[Rule], name: Optional[str],
       parent_label: Optional[str]) -> TargetNode:
     copy: TargetNode = TargetNode(kind if kind else self.kind,

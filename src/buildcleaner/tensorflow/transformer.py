@@ -12,6 +12,7 @@ from typing import cast
 from buildcleaner.config import MergedTargetsConfig
 from buildcleaner.graph import PackageTree
 from buildcleaner.node import FileNode
+from buildcleaner.node import Node
 from buildcleaner.node import PackageNode
 from buildcleaner.node import RepositoryNode
 from buildcleaner.node import TargetNode
@@ -590,3 +591,16 @@ class TrivialPrivateRuleToPublicMacroTransformer(RuleTransformer):
       new_targets.append(_append_init_to_versionscript)
 
     return new_targets
+
+
+class TfNonsenseTransformer(RuleTransformer):
+  def __init__(self) -> None:
+    pass
+
+  def transform(self, repo_root: RepositoryNode) -> List[TargetNode]:
+    registry_node: Optional[Node] = repo_root[
+      "//tensorflow/python:_pywrap_py_exception_registry.so_cclib"]
+    if registry_node:
+      cast(TargetNode, registry_node).sort_labels = False
+
+    return []

@@ -173,7 +173,8 @@ class BuildTargetsPrinter:
     list_args_block: str = self._print_list_args(pkg_node.label,
                                                  node.label_list_args,
                                                  node.string_list_args,
-                                                 node.out_label_list_args)
+                                                 node.out_label_list_args,
+                                                 node.sort_labels)
     string_args_block: str = self._print_string_args(pkg_node.label,
                                                      node.label_args,
                                                      node.string_args,
@@ -202,7 +203,8 @@ class BuildTargetsPrinter:
     list_args_block: str = self._print_list_args(pkg_node.label,
                                                  func.label_list_args,
                                                  func.string_list_args,
-                                                 {})
+                                                 {},
+                                                 True)
     function_str = f"""
 {func.kind}({list_args_block}
 )"""
@@ -212,7 +214,8 @@ class BuildTargetsPrinter:
   def _print_list_args(self, pkg_label: str,
       label_list_args: Dict[str, List[TargetNode]],
       string_list_args: Dict[str, List[str]],
-      out_label_list_args: Dict[str, List[TargetNode]]) -> str:
+      out_label_list_args: Dict[str, List[TargetNode]],
+      sort_labels: bool) -> str:
     list_args_block: str = ""
 
     label_list_args_s: Dict[str, List[str]] = {}
@@ -224,7 +227,8 @@ class BuildTargetsPrinter:
       label_list_args_s[k] = [self._shorten_label(pkg_prefix, v) for v in
                               v_list]
 
-    label_block: str = self._print_list_args_internal(label_list_args_s, True)
+    label_block: str = self._print_list_args_internal(label_list_args_s,
+                                                      sort_labels)
     str_block: str = self._print_list_args_internal(string_list_args, False)
 
     return label_block + str_block
