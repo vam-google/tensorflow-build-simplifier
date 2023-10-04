@@ -143,3 +143,7 @@ bazel cquery \
   | sort \
   | uniq -c \
   | sort -nr
+
+find . -name "*.so*" | xargs ls -alh --block-size=K | sort -r -n -k 5
+ag --nocolor --nonumbers --nofilename "# generator_function = " | sort | uniq -c | sort -nr
+# generator_name = (gen_|out_nodes_|freeze_)?test_graph_tfadd(_benchmark|_test|_object_files)?$

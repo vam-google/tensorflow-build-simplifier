@@ -2,6 +2,7 @@ from functools import cmp_to_key
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Set
 from typing import Tuple
 from typing import Type
@@ -77,7 +78,21 @@ class NodeComparators:
     return self._compare_objects(left, right)
 
 
-class DebugTreePrinter:
+class Printer:
+  def get_node_kind(self, node: Node):
+    node_kind: str = node.kind.kind
+    if node.kind.kind == "cc_library":
+      cc_target_node: TargetNode = cast(TargetNode, node)
+
+      srcs_arg: Optional[
+        List[TargetNode]] = cc_target_node.label_list_args.get("srcs")
+      if not srcs_arg:
+        node_kind += " [header-only]"
+
+    return node_kind
+
+
+class DebugTreePrinter(Printer):
   def __init__(self) -> None:
     self._targets_in_container_key = NodeComparators(
         False).targets_in_container_key
@@ -86,38 +101,35 @@ class DebugTreePrinter:
       print_targets: bool = True, indent: str = "    ",
       return_string: bool = False) -> Union[str, List[str]]:
     lines: List[str] = []
-    self._print(repo_root, lines, -1, print_files, print_targets, indent)
+    kind_counter: Dict[str, int] = {}
+    self._print(repo_root, lines, -1, kind_counter, print_files, print_targets,
+                indent)
+
+    sorted_kinds: List[Tuple[str, int]] = sorted(
+        [(k, v) for k, v in kind_counter.items()], key=lambda x: -x[1])
+
+    lines.extend([f"{kind[0]}: {kind[1]}" for kind in sorted_kinds])
+
     return "\n".join(lines) if return_string else lines
 
-  def print_nodes_by_kind(self,
-      nodes_by_kind: Dict[str, Dict[str, TargetNode]]) -> str:
-    lines: List[str] = []
-    total_count: int = 0
-    count_lines: List[str] = []
-    for k, v in nodes_by_kind.items():
-      sorted_labels: List[str] = [node_label for node_label in v]
-      sorted_labels.sort()
-      lines.append(f"{k}: {len(sorted_labels)}")
-      lines.append("    " + "\n    ".join(sorted_labels))
-      total_count += len(sorted_labels)
-      count_lines.append(f"    {k}: {len(sorted_labels)}")
-
-    lines.append("\nNodes by kind summary:")
-    lines.extend(count_lines)
-    lines.append(f"\nTotal Nodes: {total_count}")
-
-    return "\n".join(lines)
-
   # does preorder traversal
-  def _print(self, node: Node, lines: List[str], depth: int, print_files: bool,
+  def _print(self, node: Node, lines: List[str], depth: int,
+      kind_counter: Dict[str, int], print_files: bool,
       print_targets: bool, indent: str) -> None:
+
+    node_kind: str = self.get_node_kind(node)
+
+    if node_kind not in kind_counter:
+      kind_counter[node_kind] = 0
+    kind_counter[node_kind] += 1
+
     if isinstance(node, FileNode):
       if print_files:
-        target_kind = f"{node.kind} " if isinstance(node, TargetNode) else ""
+        target_kind = f"{node_kind} " if isinstance(node, TargetNode) else ""
         lines.append(f"{indent * depth}{target_kind}{str(node)}")
     else:
       if (not isinstance(node, TargetNode) or print_targets):
-        target_kind = f"{node.kind} " if isinstance(node, TargetNode) else ""
+        target_kind = f"{node_kind} " if isinstance(node, TargetNode) else ""
         lines.append(f"{indent * depth}{target_kind}{str(node)}")
 
     if isinstance(node, ContainerNode):
@@ -126,10 +138,11 @@ class DebugTreePrinter:
                                     key=self._targets_in_container_key)
 
       for v in children:
-        self._print(v, lines, depth + 1, print_files, print_targets, indent)
+        self._print(v, lines, depth + 1, kind_counter, print_files,
+                    print_targets, indent)
 
 
-class BuildTargetsPrinter:
+class BuildTargetsPrinter(Printer):
   def __init__(self) -> None:
     self._comparator: NodeComparators = NodeComparators(True)
 
@@ -339,7 +352,7 @@ class BuildFilesPrinter(BuildTargetsPrinter):
       build_files_dict[pkg_node.get_package_folder_path()] = file_body
 
 
-class GraphPrinter:
+class GraphPrinter(Printer):
   def __init__(self, dg_builder: TargetDagBuilder) -> None:
     self.dg_builder = dg_builder
 
@@ -378,11 +391,12 @@ graph [ranksep="11.0",rankdir="LR",outputorder="edgesfirst",root="{root_node}"];
     undirected_edges: Set[str] = set()
 
     for the_node, direct_nodes, reverse_nodes in nodes_and_edges:
-      node_kind: str = f"{the_node.kind}"
-      if the_node.kind.kind == "alias":
+      node_kind: str = self.get_node_kind(the_node)
+      if node_kind == "alias":
         actual_node: TargetNode = cast(TargetNode, the_node).label_args[
           "actual"]
-        node_kind += f" -> {actual_node.kind} {actual_node}"
+        node_kind += f" [{actual_node.kind} {actual_node}]"
+
       dot_nodes.append(
           f'"{the_node}" [label="{node_no}:{len(direct_nodes)}:{len(reverse_nodes)}"]; # {node_kind}')
       node_no += 1
